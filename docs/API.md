@@ -1,4 +1,4 @@
-# Documentation API — Distribution Tracker v1.0.0
+# Documentation API — Distribution Tracker v2.0.0
 
 L'API REST est exposée par le serveur Express. Toutes les requêtes et réponses utilisent le format **JSON**.
 
@@ -6,333 +6,390 @@ L'API REST est exposée par le serveur Express. Toutes les requêtes et réponse
 
 ## Authentification
 
-Les routes admin nécessitent le header suivant :
+Depuis la v2.0.0, l'API utilise des **tokens JWT** au lieu du mot de passe en header.
 
+### Obtenir un token
 ```
-x-admin-pwd: <ADMIN_PASSWORD>
+POST /api/auth/login
+```
+Retourne un token valable **7 jours**.
+
+### Utiliser le token
+Inclure dans toutes les requêtes protégées :
+```
+Authorization: Bearer <token>
 ```
 
-ou en query string : `?pwd=<ADMIN_PASSWORD>`
+### Niveaux d'accès
+- 🔒 **Auth** — tout utilisateur connecté (admin ou créateur)
+- 🔑 **Admin** — rôle `admin` uniquement
+- 🗺️ **Propriétaire** — créateur de la distribution ou co-gérant/délégué
+- 🌐 **Public** — aucune authentification requise
 
-Les routes publiques (rejoindre une distribution, voir les routes) ne nécessitent pas d'authentification.
+---
+
+## Auth
+
+### `POST /api/auth/login`
+Connexion par email/mot de passe.
+
+**Body**
+```json
+{ "email": "aline@exemple.fr", "password": "monMotDePasse" }
+```
+
+**Réponse 200**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "user": {
+    "id": "abc123", "email": "aline@exemple.fr",
+    "name": "Aline", "role": "creator",
+    "forceChange": false
+  }
+}
+```
+
+| Code | Cause |
+|---|---|
+| 401 | Email ou mot de passe incorrect / compte désactivé |
+
+---
+
+### `GET /api/auth/me` 🔒
+Retourne les informations de l'utilisateur connecté.
+
+**Réponse 200**
+```json
+{ "id": "abc123", "email": "aline@exemple.fr", "name": "Aline", "role": "creator" }
+```
+
+---
+
+### `PUT /api/auth/change-password` 🔒
+Change le mot de passe de l'utilisateur connecté.
+
+**Body**
+```json
+{ "current": "ancien", "newPassword": "nouveau8+" }
+```
+
+---
+
+### `POST /api/auth/forgot-password` 🌐
+Envoie un email de réinitialisation (répond toujours 200 pour ne pas révéler les emails).
+
+**Body** `{ "email": "aline@exemple.fr" }`
+
+---
+
+### `POST /api/auth/reset-password` 🌐
+Réinitialise le mot de passe avec un token reçu par email.
+
+**Body** `{ "token": "abc123...", "newPassword": "nouveau8+" }`
+
+---
+
+## Admin — Utilisateurs
+
+### `GET /api/admin/users` 🔑
+Liste tous les utilisateurs.
+
+**Réponse 200**
+```json
+[{
+  "id": "abc123", "email": "aline@exemple.fr", "name": "Aline",
+  "role": "creator", "active": 1, "created_at": 1748604000000, "last_login": 1748700000000
+}]
+```
+
+---
+
+### `POST /api/admin/users` 🔑
+Crée un compte utilisateur. Si `password` est omis, un mot de passe est généré.
+
+**Body**
+```json
+{
+  "email": "aline@exemple.fr", "name": "Aline",
+  "role": "creator",
+  "password": "optionnel",
+  "sendWelcome": true
+}
+```
+
+**Réponse 200**
+```json
+{ "success": true, "id": "abc123", "generatedPassword": "xyz789abc" }
+```
+
+> `generatedPassword` est présent uniquement si le mot de passe a été généré automatiquement.
+
+---
+
+### `PUT /api/admin/users/:id` 🔑
+Modifie un compte (nom, rôle, statut actif, email).
+
+**Body** `{ "name": "...", "role": "creator|admin", "active": true, "email": "..." }`
+
+---
+
+### `DELETE /api/admin/users/:id` 🔑
+Supprime un compte (impossible de supprimer son propre compte).
+
+---
+
+### `POST /api/admin/users/:id/reset-password` 🔑
+Réinitialise le mot de passe d'un utilisateur. Si `newPassword` est omis, génère et retourne un mot de passe.
+
+**Body** `{ "newPassword": "optionnel8+" }`
+
+**Réponse 200** `{ "success": true, "generatedPassword": "xyz789" }`
+
+---
+
+## Admin — SMTP
+
+### `GET /api/admin/smtp` 🔑
+Récupère la configuration SMTP (mot de passe masqué `••••••••`).
+
+**Réponse 200**
+```json
+{
+  "host": "smtp.gmail.com", "port": 587, "secure": 0,
+  "smtp_user": "user@gmail.com", "smtp_pass": "••••••••",
+  "from_name": "Distribution Tracker", "from_email": "noreply@exemple.fr",
+  "enabled": 1
+}
+```
+
+---
+
+### `PUT /api/admin/smtp` 🔑
+Sauvegarde la configuration SMTP. Si `pass` est vide ou absent, le mot de passe existant est conservé.
+
+**Body**
+```json
+{
+  "host": "smtp.gmail.com", "port": 587, "secure": false,
+  "user": "user@gmail.com", "pass": "nouveau-mdp",
+  "from_name": "Distribution Tracker", "from_email": "noreply@exemple.fr",
+  "enabled": true
+}
+```
+
+---
+
+### `POST /api/admin/smtp/test` 🔑
+Envoie un email de test.
+
+**Body** `{ "to": "test@exemple.fr" }`
+
+---
+
+## Admin — Templates email
+
+### `GET /api/admin/templates` 🔑
+Liste tous les templates email.
+
+**Réponse 200**
+```json
+[{ "name": "reset-password", "subject": "🔑 Réinitialisation...", "html": "<div>...</div>" }]
+```
+
+Templates disponibles :
+
+| Nom | Variables |
+|---|---|
+| `reset-password` | `name`, `url`, `app_name` |
+| `welcome` | `name`, `email`, `password`, `url`, `app_name` |
+
+---
+
+### `PUT /api/admin/templates/:name` 🔑
+Met à jour un template. Utiliser `{{variable}}` comme placeholders.
+
+**Body** `{ "subject": "Sujet avec {{app_name}}", "html": "<p>Bonjour {{name}}</p>" }`
 
 ---
 
 ## Distributions
 
-### `POST /api/admin/login`
-Vérifie le mot de passe admin.
-
-**Body**
-```json
-{ "password": "admin123" }
-```
+### `GET /api/distributions` 🔒
+- **Admin** : retourne toutes les distributions
+- **Créateur** : retourne ses distributions + celles partagées avec lui
 
 **Réponse 200**
 ```json
-{ "success": true, "token": "admin123" }
-```
-
-**Réponse 401**
-```json
-{ "error": "Mot de passe incorrect" }
+[{
+  "id": "a1b2c3d4e5", "name": "Journal du Lundi",
+  "description": "Secteur Nord", "created_at": 1748604000000,
+  "closed_at": null, "status": "active",
+  "creator_id": "abc123", "creator_name": "Aline",
+  "user_count": 3
+}]
 ```
 
 ---
 
 ### `POST /api/distributions` 🔒
-Crée une nouvelle distribution.
+Crée une distribution. Le créateur est automatiquement l'utilisateur connecté.
 
-**Body**
+**Body** `{ "name": "Journal du Lundi", "description": "Optionnel" }`
+
+**Réponse 200** `{ "id": "a1b2c3d4e5", "name": "...", "url": "https://..." }`
+
+---
+
+### `GET /api/distributions/:id` 🌐
+Informations publiques d'une distribution (utilisé par la page distributeur).
+
+**Réponse 200**
 ```json
 {
-  "name": "Journal du Lundi",
-  "description": "Secteur Nord — 120 boîtes"
-}
-```
-
-**Réponse 201**
-```json
-{
-  "id": "a1b2c3d4e5",
-  "name": "Journal du Lundi",
-  "url": "http://localhost:3000/distribution.html?id=a1b2c3d4e5"
+  "id": "a1b2c3d4e5", "name": "Journal du Lundi", "status": "active",
+  "users": [{ "id": "usr_abc", "name": "Aline", "color": "#F44336", "status": "active" }]
 }
 ```
 
 ---
 
-### `GET /api/distributions` 🔒
-Liste toutes les distributions.
+### `GET /api/distributions/:id/qr` 🗺️
+QR code de la distribution.
 
-**Réponse 200**
-```json
-[
-  {
-    "id": "a1b2c3d4e5",
-    "name": "Journal du Lundi",
-    "description": "Secteur Nord",
-    "created_at": 1748604000000,
-    "closed_at": null,
-    "status": "active",
-    "user_count": 3
-  }
-]
-```
+**Réponse 200** `{ "qr": "data:image/png;base64,...", "url": "https://..." }`
 
 ---
 
-### `GET /api/distributions/:id`
-Récupère une distribution et ses participants. **Route publique.**
+### `POST /api/distributions/:id/close` 🗺️
+Clôture la distribution. Déclenche l'événement WebSocket `distribution-closed`.
+
+---
+
+### `DELETE /api/distributions/:id` 🗺️
+Supprime la distribution et toutes ses données. Seul le propriétaire ou un admin peut supprimer.
+
+---
+
+### `PUT /api/distributions/:id/reassign` 🔑
+Réattribue une distribution à un autre créateur (admin uniquement).
+
+**Body** `{ "creatorId": "nouveau-createur-id" }`
+
+---
+
+### `GET /api/distributions/:id/routes` 🌐
+Tracés GPS de tous les participants.
 
 **Réponse 200**
 ```json
-{
-  "id": "a1b2c3d4e5",
-  "name": "Journal du Lundi",
-  "description": "Secteur Nord",
-  "created_at": 1748604000000,
-  "closed_at": null,
-  "status": "active",
-  "users": [
-    {
-      "id": "usr_abc123",
-      "name": "Aline",
-      "color": "#F44336",
-      "status": "active",
-      "joined_at": 1748604500000,
-      "last_seen": 1748606000000
-    }
+[{
+  "userId": "usr_abc", "name": "Aline", "color": "#F44336",
+  "segments": [
+    { "seg": 0, "points": [{ "lat": 48.856, "lon": 2.352, "ts": 1748604500000 }] }
   ]
-}
+}]
 ```
 
-**Statuts distribution :** `active` | `closed`  
-**Statuts utilisateur :** `active` | `paused` | `done`
+> Un segment = un trajet continu. Le numéro `seg` incrémente à chaque reprise après pause.
 
 ---
 
-### `GET /api/distributions/:id/qr` 🔒
-Génère le QR code de la distribution.
+### `GET /api/distributions/:id/report` 🗺️
+Rapport complet avec statistiques calculées.
 
 **Réponse 200**
 ```json
 {
-  "qr": "data:image/png;base64,iVBORw...",
-  "url": "http://localhost:3000/distribution.html?id=a1b2c3d4e5"
-}
-```
-
----
-
-### `POST /api/distributions/:id/close` 🔒
-Clôture une distribution. Déclenche l'événement WebSocket `distribution-closed`.
-
-**Réponse 200**
-```json
-{ "success": true }
-```
-
----
-
-### `DELETE /api/distributions/:id` 🔒
-Supprime définitivement une distribution et toutes ses données (participants, routes, sessions).
-
-**Réponse 200**
-```json
-{ "success": true }
-```
-
----
-
-## Participants
-
-### `POST /api/distributions/:id/join`
-Rejoint une distribution en tant qu'utilisateur. **Route publique.**
-
-Si le nom existe déjà, la session existante est retournée (`isExisting: true`).
-
-**Body**
-```json
-{
-  "name": "Aline",
-  "color": "#F44336"
-}
-```
-
-**Réponse 200 — Nouvel utilisateur**
-```json
-{
-  "userId": "usr_abc123def456",
-  "token": "tok_xyz789...",
-  "color": "#F44336",
-  "name": "Aline",
-  "isExisting": false
-}
-```
-
-**Réponse 200 — Session existante**
-```json
-{
-  "userId": "usr_abc123def456",
-  "token": "tok_xyz789...",
-  "color": "#F44336",
-  "name": "Aline",
-  "isExisting": true
-}
-```
-
-**Erreurs**
-```json
-{ "error": "Distribution non trouvée" }         // 404
-{ "error": "Cette distribution est clôturée" }  // 400
-{ "error": "Le nom est requis" }                // 400
-{ "error": "La couleur est requise" }           // 400
-{ "error": "Cette couleur est déjà utilisée" }  // 400
-```
-
----
-
-## Routes (tracés GPS)
-
-### `GET /api/distributions/:id/routes`
-Retourne tous les tracés GPS d'une distribution. **Route publique.**
-
-**Réponse 200**
-```json
-[
-  {
-    "userId": "usr_abc123def456",
-    "name": "Aline",
-    "color": "#F44336",
-    "segments": [
-      {
-        "seg": 0,
-        "points": [
-          { "lat": 48.8566, "lon": 2.3522, "ts": 1748604500000 },
-          { "lat": 48.8570, "lon": 2.3530, "ts": 1748604510000 }
-        ]
-      },
-      {
-        "seg": 1,
-        "points": [
-          { "lat": 48.8575, "lon": 2.3540, "ts": 1748605200000 }
-        ]
-      }
-    ]
-  }
-]
-```
-
-> Les segments sont séparés par les pauses. Le numéro `seg` incrémente à chaque reprise.
-
----
-
-## Rapport
-
-### `GET /api/distributions/:id/report` 🔒
-Retourne le rapport complet d'une distribution avec statistiques calculées.
-
-**Réponse 200**
-```json
-{
-  "distribution": {
-    "id": "a1b2c3d4e5",
-    "name": "Journal du Lundi",
-    "created_at": 1748604000000,
-    "status": "closed"
-  },
-  "users": [
-    {
-      "id": "usr_abc123def456",
-      "name": "Aline",
-      "color": "#F44336",
-      "status": "done",
-      "distance": 4.512,
-      "duration": 7200000,
-      "pointCount": 842
-    }
-  ],
+  "distribution": { "id": "...", "name": "...", "status": "closed" },
+  "users": [{
+    "id": "usr_abc", "name": "Aline", "color": "#F44336",
+    "status": "done", "distance": 4.512, "duration": 7200000, "pointCount": 842
+  }],
   "routes": [ /* même format que /routes */ ],
   "totalDistance": 12.847,
   "totalDuration": 18000000
 }
 ```
 
-> `distance` en kilomètres (3 décimales) — calculé avec la formule **Haversine**  
-> `duration` en millisecondes — somme des sessions actives (hors pauses)
+> `distance` en km (3 décimales) — Haversine  
+> `duration` en ms — somme des sessions actives hors pauses
+
+---
+
+## Managers & Délégation
+
+### `GET /api/distributions/:id/managers` 🗺️
+Liste les co-gérants et délégués d'une distribution.
+
+**Réponse 200**
+```json
+[{
+  "distribution_id": "a1b2c3d4e5", "user_id": "abc123",
+  "type": "delegate", "added_at": 1748700000000,
+  "name": "Didier", "email": "didier@exemple.fr", "role": "creator"
+}]
+```
+
+Types : `delegate` (gestion complète) | `manager` (co-gérant)
+
+---
+
+### `POST /api/distributions/:id/managers` 🗺️
+Ajoute un co-gérant ou un délégué.
+
+**Body** `{ "userId": "abc123", "type": "manager|delegate" }`
+
+> Pour la délégation (`type: "delegate"`), l'ancien délégué est automatiquement remplacé.
+
+---
+
+### `DELETE /api/distributions/:id/managers/:userId` 🗺️
+Retire un co-gérant ou délégué.
+
+---
+
+## Rejoindre une distribution
+
+### `POST /api/distributions/:id/join` 🌐
+Utilisé par la page distributeur (sans compte). Si le nom existe déjà, la session est restaurée.
+
+**Body** `{ "name": "Aline", "color": "#F44336" }`
+
+**Réponse 200**
+```json
+{
+  "userId": "usr_abc123", "token": "tok_xyz789",
+  "color": "#F44336", "name": "Aline", "isExisting": false
+}
+```
+
+| Code | Cause |
+|---|---|
+| 400 | Distribution clôturée / couleur déjà prise / nom requis |
+| 404 | Distribution non trouvée |
 
 ---
 
 ## WebSocket (Socket.io)
 
-Connexion sur la même URL que l'application (`/`).
+Connexion sur la même URL que l'application.
 
 ### Événements client → serveur
 
 | Événement | Payload | Description |
 |---|---|---|
-| `join` | `{ distributionId }` | Rejoindre la room d'une distribution |
-| `location` | `{ userId, token, lat, lon, ts }` | Envoyer une position GPS |
+| `join` | `{ distributionId }` | Rejoindre la room |
+| `location` | `{ userId, token, lat, lon, ts }` | Position GPS |
 | `pause` | `{ userId, token }` | Mettre en pause |
-| `resume` | `{ userId, token }` | Reprendre après une pause |
-| `done` | `{ userId, token }` | Marquer la distribution comme terminée |
+| `resume` | `{ userId, token }` | Reprendre |
+| `done` | `{ userId, token }` | Terminer |
 
 ### Événements serveur → clients
 
 | Événement | Payload | Description |
 |---|---|---|
 | `user-joined` | `{ id, name, color, status, joinedAt }` | Nouveau participant |
-| `location` | `{ userId, lat, lon, ts, segment }` | Nouvelle position GPS d'un participant |
-| `user-status` | `{ userId, status, segment? }` | Changement de statut (pause/reprise/fin) |
-| `distribution-closed` | *(vide)* | Distribution clôturée par l'admin |
-
-### Exemple d'utilisation
-
-```javascript
-const socket = io();
-
-// Rejoindre la room
-socket.emit('join', { distributionId: 'a1b2c3d4e5' });
-
-// Envoyer une position
-socket.emit('location', {
-  userId: 'usr_abc123',
-  token:  'tok_xyz789',
-  lat:    48.8566,
-  lon:    2.3522,
-  ts:     Date.now()
-});
-
-// Écouter les mises à jour
-socket.on('location', ({ userId, lat, lon, segment }) => {
-  console.log(`${userId} est en (${lat}, ${lon}) segment ${segment}`);
-});
-```
-
----
-
-## Modèles de données
-
-### Distribution
-| Champ | Type | Description |
-|---|---|---|
-| `id` | `string` | Identifiant unique (10 chars hex) |
-| `name` | `string` | Nom de la distribution |
-| `description` | `string` | Description optionnelle |
-| `created_at` | `number` | Timestamp de création (ms) |
-| `closed_at` | `number\|null` | Timestamp de clôture (ms) |
-| `status` | `string` | `active` ou `closed` |
-
-### Utilisateur
-| Champ | Type | Description |
-|---|---|---|
-| `id` | `string` | Identifiant unique (16 chars hex) |
-| `distribution_id` | `string` | ID de la distribution |
-| `name` | `string` | Nom/équipe du participant |
-| `color` | `string` | Couleur hex (ex: `#F44336`) |
-| `token` | `string` | Token d'authentification (32 chars hex) |
-| `status` | `string` | `active`, `paused`, ou `done` |
-| `segment` | `number` | Numéro du segment courant (incrémente à chaque reprise) |
-| `joined_at` | `number` | Timestamp d'inscription (ms) |
-| `last_seen` | `number\|null` | Dernière position reçue (ms) |
+| `location` | `{ userId, lat, lon, ts, segment }` | Position d'un participant |
+| `user-status` | `{ userId, status, segment? }` | Changement de statut |
+| `distribution-closed` | *(vide)* | Distribution clôturée |

@@ -1,65 +1,58 @@
-# Guide de déploiement — Distribution Tracker v1.0.0
+# Guide de déploiement — Distribution Tracker v2.0.0
 
 ---
 
 ## Prérequis
 
 - **Docker** ≥ 24 et **Docker Compose** ≥ 2.x
-- Ou **Node.js** ≥ 18 (pour le développement local)
+- Ou **Node.js** ≥ 18 (développement local)
 - Accès réseau au serveur cible
 - Un nom de domaine ou IP fixe (pour les QR codes)
+- **HTTPS recommandé** — requis par les navigateurs mobiles pour accéder au GPS
 
 ---
 
 ## 1. Déploiement Docker Compose (recommandé)
 
-### Cloner le dépôt
+### Préparer le répertoire de données (une seule fois)
+
+```bash
+# Sur le serveur hôte — à faire avant le premier démarrage
+mkdir -p /opt/web-distributions/data
+```
+
+> ⚠️ Cette étape est **obligatoire**. Le bind mount `docker-compose.yml` pointe sur ce répertoire.
+> Les données SQLite y sont stockées et survivent à tout redéploiement.
+
+### Cloner et configurer
 
 ```bash
 git clone https://github.com/wdebonne/web-distributions.git
 cd web-distributions
-```
-
-### Configurer l'environnement
-
-```bash
 cp .env.example .env
-# Éditer .env avec vos valeurs
 nano .env
-```
-
-Variables importantes :
-
-```env
-ADMIN_PASSWORD=MonMotDePasseSécurisé!
-BASE_URL=https://distrib.mondomaine.fr
-PORT=3000
 ```
 
 ### Lancer
 
 ```bash
 docker compose up -d
-```
-
-### Vérifier
-
-```bash
-docker compose ps
 docker compose logs -f distribution-tracker
 ```
-
-L'application est accessible sur `http://[IP-serveur]:3000`.
 
 ---
 
 ## 2. Déploiement via Portainer + Git (mises à jour automatiques)
 
-C'est la méthode recommandée pour faciliter les mises à jour.
+### 2.1 Créer le répertoire de données sur l'hôte
 
-### 2.1 Créer le stack depuis Git
+```bash
+mkdir -p /opt/web-distributions/data
+```
 
-1. Dans Portainer → **Stacks** → **+ Add stack**
+### 2.2 Créer le stack depuis Git
+
+1. Portainer → **Stacks** → **+ Add stack**
 2. Choisir **Repository**
 3. Renseigner :
    - **Repository URL** : `https://github.com/wdebonne/web-distributions`
@@ -68,61 +61,59 @@ C'est la méthode recommandée pour faciliter les mises à jour.
 
 4. Dans **Environment variables**, ajouter :
 
-   | Nom | Valeur |
+   | Nom | Valeur requise |
    |---|---|
-   | `ADMIN_PASSWORD` | *votre mot de passe* |
+   | `PORT` | ex : `3078` |
+   | `ADMIN_EMAIL` | Email du compte admin initial |
+   | `ADMIN_PASSWORD` | Mot de passe admin initial (changer après connexion) |
+   | `JWT_SECRET` | Chaîne aléatoire longue (ex: `openssl rand -hex 32`) |
    | `BASE_URL` | `https://distrib.mondomaine.fr` |
-   | `PORT` | `3000` |
 
 5. Cliquer **Deploy the stack**
 
-### 2.2 Activer les mises à jour automatiques
+> **Premier démarrage** : si aucun compte admin n'existe, un compte est créé avec `ADMIN_EMAIL` et `ADMIN_PASSWORD`. Ces variables ne sont utilisées qu'une seule fois.
 
-Dans Portainer, sur le stack créé :
-- Activer **Auto update** → **Polling** (ex: toutes les 5 minutes)  
-- Ou configurer un **webhook** pour déclencher la mise à jour à chaque `git push`
+### 2.3 Mises à jour automatiques
 
-**Avec webhook :**
+**Option A — Auto-update par polling** (plus simple) :
+- Portainer → Stack → **Auto update** → activer, intervalle : `5m`
+
+**Option B — Webhook GitHub** (instantané) :
 1. Portainer → Stack → **Setup webhook** → copier l'URL
 2. GitHub → repo → **Settings** → **Webhooks** → coller l'URL
-
-Désormais, chaque `git push main` met à jour le container automatiquement.
-
----
-
-## 3. Mise à jour manuelle
-
-```bash
-# Sur le serveur
-cd web-distributions
-git pull origin main
-docker compose up -d --build
-```
-
-> Les données SQLite sont persistées dans le volume Docker `distribution-data` — elles ne sont **pas** perdues lors d'une mise à jour.
+3. Désormais, chaque `git push main` met à jour le container automatiquement
 
 ---
 
-## 4. Reverse proxy (HTTPS recommandé)
+## 3. Variables d'environnement complètes
 
-Pour exposer l'application sur un domaine avec HTTPS, utilisez **Nginx Proxy Manager** ou **Traefik**.
+| Variable | Défaut | Requis | Description |
+|---|---|---|---|
+| `PORT` | `3000` | Non | Port d'écoute HTTP |
+| `ADMIN_EMAIL` | `admin@localhost` | **Prod** | Email du 1er compte admin |
+| `ADMIN_PASSWORD` | `admin123` | **Prod** | Mot de passe du 1er compte admin |
+| `JWT_SECRET` | *(valeur dev)* | **Prod** | Clé secrète JWT — générer avec `openssl rand -hex 32` |
+| `BASE_URL` | *(auto)* | En prod | URL publique complète (sans `/` final) |
+| `DATA_DIR` | `/data` | Non | Répertoire SQLite dans le container |
+| `NODE_ENV` | `production` | Non | Environnement Node.js |
 
-### Exemple avec Nginx Proxy Manager
+---
 
-1. Créer un **Proxy Host** :
+## 4. Reverse proxy HTTPS (recommandé)
+
+Le GPS mobile **nécessite HTTPS**. Utiliser Nginx Proxy Manager ou Traefik.
+
+### Nginx Proxy Manager
+
+1. **Proxy Host** :
    - Domain : `distrib.mondomaine.fr`
    - Forward Hostname : `distribution-tracker` (nom du container)
-   - Forward Port : `3000`
-   - Activer **SSL** (Let's Encrypt)
+   - Forward Port : `3000` (ou le PORT configuré)
+2. Activer **SSL** (Let's Encrypt)
+3. Activer **WebSocket support** (requis pour Socket.io)
+4. Mettre à jour `BASE_URL=https://distrib.mondomaine.fr`
 
-2. Activer **WebSocket support** (requis pour Socket.io)
-
-3. Mettre à jour `BASE_URL` dans le stack Portainer :
-   ```
-   BASE_URL=https://distrib.mondomaine.fr
-   ```
-
-### Exemple avec Traefik (labels docker-compose)
+### Traefik (labels docker-compose)
 
 ```yaml
 services:
@@ -138,39 +129,49 @@ services:
 
 ---
 
-## 5. Variables d'environnement complètes
+## 5. Persistance des données
 
-| Variable | Défaut | Requis | Description |
-|---|---|---|---|
-| `PORT` | `3000` | Non | Port d'écoute HTTP |
-| `ADMIN_PASSWORD` | `admin123` | **Oui** | Mot de passe admin — à changer ! |
-| `BASE_URL` | *(auto)* | En prod | URL publique complète (sans `/` final) |
-| `DATA_DIR` | `./data` | Non | Répertoire de la base SQLite |
-| `NODE_ENV` | `production` | Non | Environnement Node.js |
+Les données sont dans `/opt/web-distributions/data/tracker.db` sur l'hôte.
+
+### Sauvegarde
+
+```bash
+cp /opt/web-distributions/data/tracker.db \
+   /opt/web-distributions/data/backup-$(date +%Y%m%d-%H%M).db
+```
+
+### Sauvegarde automatique (cron)
+
+```bash
+# Sauvegarder chaque nuit à 2h, garder 30 jours
+0 2 * * * cp /opt/web-distributions/data/tracker.db /opt/web-distributions/backups/tracker-$(date +\%Y\%m\%d).db && find /opt/web-distributions/backups -name "*.db" -mtime +30 -delete
+```
+
+### Restaurer
+
+```bash
+# Arrêter le container
+docker compose stop distribution-tracker
+
+# Restaurer
+cp /opt/web-distributions/backups/tracker-20260530.db \
+   /opt/web-distributions/data/tracker.db
+
+# Redémarrer
+docker compose start distribution-tracker
+```
 
 ---
 
-## 6. Sauvegarde des données
-
-Les données sont dans le volume Docker `distribution-data`.
-
-### Exporter la sauvegarde
+## 6. Mise à jour manuelle
 
 ```bash
-docker run --rm \
-  -v distribution-data:/data \
-  -v $(pwd):/backup \
-  alpine tar czf /backup/backup-$(date +%Y%m%d).tar.gz /data
+cd web-distributions
+git pull origin main
+docker compose up -d --build
 ```
 
-### Restaurer une sauvegarde
-
-```bash
-docker run --rm \
-  -v distribution-data:/data \
-  -v $(pwd):/backup \
-  alpine tar xzf /backup/backup-20260530.tar.gz -C /
-```
+> Les données sont dans `/opt/web-distributions/data` sur l'hôte et ne sont **jamais** affectées par une mise à jour.
 
 ---
 
@@ -183,39 +184,31 @@ npm install
 cp .env.example .env
 npm start
 # → http://localhost:3000
-```
-
-Pour le rechargement automatique :
-
-```bash
-npm install -g nodemon
-nodemon server.js
+# Compte admin créé : admin@localhost / admin123
 ```
 
 ---
 
-## 8. Health check
-
-```bash
-curl http://localhost:3000/
-# → doit retourner du HTML
-```
-
-Ou via Docker :
-
-```bash
-docker compose ps
-# STATUS doit être "Up (healthy)"
-```
-
----
-
-## 9. Logs
+## 8. Logs et diagnostics
 
 ```bash
 # Logs en temps réel
 docker compose logs -f
 
-# Dernières 100 lignes
-docker compose logs --tail=100 distribution-tracker
+# Dernières 200 lignes
+docker compose logs --tail=200 distribution-tracker
+
+# Vérifier que le serveur répond
+curl http://localhost:3000/
 ```
+
+---
+
+## 9. Checklist de sécurité production
+
+- [ ] `ADMIN_PASSWORD` changé après la première connexion
+- [ ] `JWT_SECRET` défini avec `openssl rand -hex 32`
+- [ ] `BASE_URL` pointe vers HTTPS
+- [ ] HTTPS activé (Nginx Proxy Manager ou Traefik)
+- [ ] Sauvegarde automatique configurée
+- [ ] `ADMIN_EMAIL` pointe vers une adresse réelle si SMTP configuré

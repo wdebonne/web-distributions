@@ -1,6 +1,4 @@
-# Guide de contribution — Distribution Tracker
-
-Merci de votre intérêt pour ce projet ! Voici comment contribuer.
+# Guide de contribution — Distribution Tracker v2.0.0
 
 ---
 
@@ -20,25 +18,30 @@ cd web-distributions
 npm install
 cp .env.example .env
 npm start
+# → http://localhost:3000
+# Compte admin créé automatiquement : admin@localhost / admin123
 ```
 
-L'application est disponible sur `http://localhost:3000`.  
-Mot de passe admin par défaut : `admin123`.
+---
 
-### Structure des fichiers
+## 🗂️ Structure des fichiers
 
 ```
 web-distributions/
-├── server.js          # Point d'entrée — API REST + Socket.io
-├── database.js        # Abstraction SQLite (sql.js)
-├── public/            # Fichiers statiques servis par Express
-│   ├── admin.html     # SPA admin (login + dashboard)
-│   ├── track.html     # Carte temps réel
-│   ├── report.html    # Rapports + export PDF
-│   ├── distribution.html  # Interface mobile utilisateur
-│   ├── colors.js      # Palette partagée (chargée côté client)
-│   └── style.css      # Styles globaux responsive
-└── docs/              # Documentation
+├── server.js          # API REST + Socket.io + auth JWT + routes rôles
+├── database.js        # SQLite (sql.js) — toutes les tables et fonctions
+└── public/
+    ├── login.html         # Page de connexion unifiée
+    ├── forgot-password.html
+    ├── reset-password.html
+    ├── change-password.html
+    ├── admin.html         # Super-admin : users, distributions, SMTP, templates
+    ├── creator.html       # Créateur : distributions, délégation, co-gérants
+    ├── track.html         # Carte suivi temps réel (auth JWT requis)
+    ├── report.html        # Rapports + export PDF (auth JWT requis)
+    ├── distribution.html  # Interface distributeur (public, sans compte)
+    ├── colors.js          # Palette de 16 couleurs (partagée côté client)
+    └── style.css          # Styles globaux responsive
 ```
 
 ---
@@ -46,17 +49,23 @@ web-distributions/
 ## 📐 Conventions de code
 
 ### JavaScript
-- **Pas de framework frontend** — Vanilla JS uniquement (garder la simplicité)
-- Pas de transpilation / bundler — le code doit tourner directement dans Node.js et les navigateurs modernes
+- **Vanilla JS** uniquement — pas de framework frontend, pas de bundler
+- Code exécutable directement dans Node.js ≥ 18 et navigateurs modernes
 - `const` par défaut, `let` si réassignation, jamais `var`
-- Fonctions nommées plutôt que fléchées pour les handlers principaux
-- Nommage : `camelCase` pour les variables/fonctions, `UPPER_SNAKE` pour les constantes globales
+- Fonctions nommées pour les handlers principaux
+- `camelCase` pour variables/fonctions, `UPPER_SNAKE` pour constantes globales
+
+### Auth & sécurité
+- Toutes les routes admin/créateur utilisent le middleware `auth(['role'])` de `server.js`
+- Jamais de mot de passe en clair dans les logs ou les réponses
+- Le champ `smtp_pass` est masqué (`••••••••`) dans les réponses API
+- Tokens JWT stockés dans `localStorage` (acceptable pour outil interne)
 
 ### CSS
-- Variables CSS dans `:root` pour les couleurs et espacements
-- Mobile-first : styles de base pour mobile, `@media (min-width: ...)` pour les écrans plus larges
-- Pas de framework CSS — CSS custom uniquement
+- Variables CSS dans `:root` pour couleurs et espacements
+- Mobile-first : styles de base pour mobile, `@media (min-width: ...)` pour écrans plus larges
 - Cibles tactiles minimum 44px (WCAG 2.1 AA)
+- Pas de framework CSS
 
 ### HTML
 - `lang="fr"` sur `<html>`
@@ -64,11 +73,11 @@ web-distributions/
 - `aria-label` sur les boutons sans texte visible
 - `role="dialog"` + `aria-modal="true"` sur les modales
 
-### Backend (server.js / database.js)
-- Réponses d'erreur toujours avec `{ error: "message en français" }`
-- Codes HTTP sémantiques : 200, 201, 400, 401, 404
-- Pas de dépendances inutiles — garder le `package.json` minimal
+### Backend
+- Réponses d'erreur : `{ "error": "message en français" }`
+- Codes HTTP sémantiques : 200, 400, 401, 403, 404, 500
 - `db.init()` est async — toujours attendre avant de démarrer le serveur
+- Toute écriture en base déclenche une sauvegarde immédiate via `save()`
 
 ---
 
@@ -77,93 +86,103 @@ web-distributions/
 ### 1. Forker et cloner
 
 ```bash
-# Forker sur GitHub, puis :
 git clone https://github.com/VOTRE_NOM/web-distributions.git
 git remote add upstream https://github.com/wdebonne/web-distributions.git
 ```
 
 ### 2. Créer une branche
 
-Nommage des branches :
-- `feat/nom-de-la-fonctionnalite`
-- `fix/description-du-bug`
-- `docs/mise-a-jour-documentation`
-- `refactor/nom-du-composant`
+| Préfixe | Usage |
+|---|---|
+| `feat/` | Nouvelle fonctionnalité |
+| `fix/` | Correction de bug |
+| `docs/` | Documentation uniquement |
+| `refactor/` | Refactoring sans changement de comportement |
+| `chore/` | Maintenance (deps, config…) |
 
 ```bash
 git checkout -b feat/export-csv
 ```
 
-### 3. Développer
+### 3. Développer et tester
 
-- Tester manuellement sur **Chrome mobile** (DevTools > toggle device toolbar)
-- Tester sur **Firefox** et **Safari/iOS** si possible
-- Vérifier que le serveur démarre sans erreur : `npm start`
-- Vérifier qu'il n'y a pas d'erreurs dans la console navigateur
+```bash
+# Tester le serveur
+npm start
 
-### 4. Commit
+# Tester l'auth — vérifier :
+# - login.html → connexion admin → admin.html
+# - login.html → connexion créateur → creator.html
+# - distribution.html?id=X → page publique (sans compte)
 
-Format des messages de commit ([Conventional Commits](https://www.conventionalcommits.org/fr/)) :
+# Tester le responsive :
+# Chrome DevTools → Toggle device toolbar → iPhone 14 Pro
+```
+
+Points de vérification avant PR :
+- [ ] Serveur démarre sans erreur (`npm start`)
+- [ ] Pas d'erreurs dans la console navigateur
+- [ ] Testé sur mobile (Chrome DevTools ou vrai appareil)
+- [ ] Testé sur Firefox
+- [ ] Auth JWT fonctionne (login, refresh, logout)
+
+### 4. Format des commits ([Conventional Commits](https://www.conventionalcommits.org/fr/))
 
 ```
 <type>(<scope>): <description courte>
 
 [corps optionnel]
-
-[footer optionnel]
 ```
-
-Types : `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `chore`
 
 Exemples :
 ```
-feat(report): ajouter export CSV en plus du PDF
-fix(distribution): corriger la reprise de session après fermeture navigateur
-docs(api): documenter l'événement WebSocket user-status
+feat(creator): ajouter l'export de distribution en CSV
+fix(auth): corriger la redirection après expiration du token JWT
+docs(api): documenter les nouveaux endpoints managers
 ```
 
 ### 5. Pull Request
 
-- Titre clair et concis
-- Description : contexte, ce qui a changé, comment tester
-- Lier l'issue concernée si applicable : `Closes #42`
-- Screenshots / vidéo si changement visuel
+- Titre court et précis
+- Description : contexte, changements, instructions de test
+- Lier l'issue : `Closes #42`
+- Screenshots si changement visuel
 
 ---
 
 ## 🐛 Signaler un bug
 
-Ouvrir une [Issue GitHub](https://github.com/wdebonne/web-distributions/issues) avec :
+[Ouvrir une Issue GitHub](https://github.com/wdebonne/web-distributions/issues) avec :
 
-- **Version** de l'application (voir `package.json`)
-- **Navigateur** et version
-- **Appareil** (PC / mobile / tablette)
-- **Steps to reproduce** : étapes pour reproduire
-- **Expected** : comportement attendu
-- **Actual** : comportement observé
-- **Logs** : console navigateur ou serveur si disponible
+- Version (`package.json`)
+- Navigateur et version
+- Appareil (PC / mobile / tablette)
+- Steps to reproduce
+- Expected vs Actual
+- Logs console (navigateur ou serveur)
 
 ---
 
 ## 💡 Proposer une fonctionnalité
 
-Ouvrir une Issue avec le label `enhancement` et décrire :
-- Le besoin utilisateur
-- La solution proposée
-- Les alternatives envisagées
+Issue avec le label `enhancement` :
+- Besoin utilisateur
+- Solution proposée
+- Alternatives envisagées
 
 ---
 
 ## 📦 Versionnage
 
-Ce projet suit le [Versionnage Sémantique](https://semver.org/lang/fr/) :
-- `MAJOR.MINOR.PATCH`
-- `PATCH` : correction de bug rétrocompatible
-- `MINOR` : nouvelle fonctionnalité rétrocompatible
-- `MAJOR` : changement incompatible
+[Versionnage Sémantique](https://semver.org/lang/fr/) — `MAJOR.MINOR.PATCH`
 
-Toujours mettre à jour :
-- `package.json` → `version`
-- `CHANGELOG.md` → nouvelle entrée de version
-- Les badges du `README.md`
-- Le commentaire de version dans `server.js`
+À chaque release, mettre à jour :
+- [ ] `package.json` → `"version"`
+- [ ] `CHANGELOG.md` → nouvelle entrée
+- [ ] `README.md` → badge version
+- [ ] `docs/API.md` → titre
+- [ ] `docs/DEPLOYMENT.md` → titre
+- [ ] `docs/CONTRIBUTING.md` → titre
+- [ ] `server.js` → commentaire en tête de fichier
+- [ ] `database.js` → commentaire en tête de fichier
+- [ ] Tag Git : `git tag v2.x.x && git push origin v2.x.x`
