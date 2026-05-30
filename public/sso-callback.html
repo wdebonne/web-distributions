@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connexion SSO…</title>
+  <style>
+    body { font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f5f7fa; }
+    .box { text-align: center; padding: 40px; background: #fff; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,.1); }
+    .spinner { width: 40px; height: 40px; border: 4px solid #e0e0e0; border-top-color: #1565C0; border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    p { color: #607D8B; font-size: 14px; }
+    .err { color: #C62828; font-size: 14px; }
+    a { color: #1565C0; }
+  </style>
+</head>
+<body>
+<div class="box" id="box">
+  <div class="spinner"></div>
+  <p>Finalisation de la connexion SSO…</p>
+</div>
+<script>
+(function() {
+  const p = new URLSearchParams(location.search);
+  const token = p.get('token');
+  const role  = p.get('role');
+
+  if (!token) {
+    document.getElementById('box').innerHTML = '<p class="err">❌ Token SSO manquant. <a href="/login.html">Retour</a></p>';
+    return;
+  }
+
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    if (payload.exp < Date.now() / 1000) throw new Error('Token expiré');
+    localStorage.setItem('authToken', token);
+    localStorage.setItem('authUser', JSON.stringify({ id: payload.id, email: payload.email, name: payload.name, role: payload.role }));
+    location.replace(payload.role === 'admin' ? 'admin.html' : 'creator.html');
+  } catch(e) {
+    document.getElementById('box').innerHTML = '<p class="err">❌ Erreur : ' + e.message + ' <a href="/login.html">Retour</a></p>';
+  }
+})();
+</script>
+</body>
+</html>

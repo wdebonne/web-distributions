@@ -2,7 +2,7 @@
 
 > Application web de suivi GPS en temps réel pour la distribution de courriers en boîtes aux lettres.
 
-[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](docs/DEPLOYMENT.md)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](package.json)
@@ -13,8 +13,17 @@
 
 ### 🔐 Authentification & rôles
 - Connexion par **email / mot de passe** (JWT 7 jours)
+- **LDAP / Active Directory** (Synology Directory Server) *(v2.2)*
+- **SSO OAuth2** (Synology SSO Server) *(v2.2)*
 - **Mot de passe oublié** par email (si SMTP configuré)
 - Deux rôles : **Admin** et **Créateur**
+
+### 🔑 LDAP & SSO *(v2.2)*
+- Modes : Local / LDAP+Local / LDAP uniquement / SSO+Local / SSO uniquement
+- **Mapping de groupes** personnalisable : `DISTRIB_ADMIN` → Admin, `DISTRIB_CREATEUR` → Créateur
+- Tout utilisateur sans groupe autorisé est **refusé**
+- Test de connexion LDAP et SSO directement dans le panneau admin
+- Certificats auto-signés Synology supportés
 
 ### 🛡️ Admin
 - Gestion des comptes utilisateurs (créer, modifier, désactiver, réinitialiser le mot de passe)
@@ -23,6 +32,7 @@
 - Éditeur de **templates email** (bienvenue, réinitialisation)
 - Tableau de bord avec statistiques globales
 - **Paramètres du site** : nom, logo, favicon, couleurs, message de connexion *(v2.1)*
+- **Configuration LDAP/SSO** avec test intégré *(v2.2)*
 
 ### 🗺️ Créateur
 - Créer et gérer ses propres distributions
@@ -104,10 +114,33 @@ Copier `.env.example` en `.env` et adapter les valeurs :
 | `ADMIN_EMAIL` | `admin@localhost` | Email du compte admin créé au 1er démarrage |
 | `ADMIN_PASSWORD` | `admin123` | Mot de passe admin — **changer en production !** |
 | `JWT_SECRET` | *(valeur par défaut)* | Clé secrète JWT — **changer en production !** |
-| `BASE_URL` | *(auto-détecté)* | URL publique complète pour les QR codes |
+| `BASE_URL` | *(auto-détecté)* | URL publique complète pour les QR codes et URI de redirection SSO |
 | `DATA_DIR` | `/data` | Répertoire SQLite dans le container |
 
-La personnalisation du site (nom, couleurs, favicon…) se configure directement depuis l'interface admin → onglet **⚙️ Paramètres**.
+La personnalisation du site (nom, couleurs, favicon…) se configure depuis l'interface admin → onglet **⚙️ Paramètres**.
+
+La configuration LDAP/SSO se configure depuis l'interface admin → onglet **🔑 Authentification**.
+
+> **Important pour le SSO** : définissez `BASE_URL` avec votre URL publique (ex : `https://distrib.mondomaine.fr`) pour que l'URI de redirection SSO soit correcte.
+
+### Configuration LDAP (Synology Directory Server)
+
+1. Admin → **🔑 Authentification** → choisir le mode LDAP ou LDAP+Local
+2. Renseigner l'hôte, le port (389 / 636 pour LDAPS), le DN de base et le compte service
+3. Ajuster le mapping des groupes (`DISTRIB_ADMIN` → Admin, `DISTRIB_CREATEUR` → Créateur)
+4. Tester la connexion avec le bouton **🔍 Tester**
+5. Enregistrer → les utilisateurs peuvent se connecter avec leurs identifiants AD
+
+### Configuration SSO (Synology SSO Server)
+
+1. Sur le NAS : DSM → Centre de paquets → installer **SSO Server**
+2. Dans SSO Server → créer une application OAuth :
+   - URI de redirection : `https://[votre-app]/api/auth/sso/callback`
+   - Copier le **Client ID** et le **Client Secret**
+3. Admin → **🔑 Authentification** → mode SSO ou SSO+Local
+4. Renseigner l'URL Synology, le Client ID, le Secret
+5. Activer "Ignorer erreurs SSL" si vous utilisez le certificat auto-signé Synology
+6. Tester → Enregistrer
 
 ---
 
@@ -177,7 +210,7 @@ web-distributions/
 |---|---|
 | Backend | Node.js 20 + Express 4 |
 | Temps réel | Socket.io 4 |
-| Authentification | JWT (jsonwebtoken) + bcryptjs |
+| Authentification | JWT (jsonwebtoken) + bcryptjs + ldapjs + OAuth2 natif |
 | Base de données | SQLite via sql.js (WASM, zéro compilation native) |
 | Emails | Nodemailer |
 | Cartes | Leaflet.js 1.9 + OpenStreetMap |

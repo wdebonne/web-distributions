@@ -13,6 +13,57 @@ et ce projet respecte le [Versionnage Sémantique](https://semver.org/lang/fr/).
 
 ---
 
+## [2.2.0] — 2026-05-30
+
+### 🔑 Authentification LDAP et SSO (nouveau)
+
+#### LDAP (Active Directory / OpenLDAP — Synology Directory Server)
+- Nouveau mode d'authentification `ldap` (LDAP uniquement) et `ldap+local` (LDAP prioritaire, local en secours)
+- Connexion au serveur LDAP via compte service (bind DN + mot de passe) + recherche utilisateur par filtre configurable
+- Support LDAP et LDAPS (SSL/TLS, certificats auto-signés acceptés)
+- Filtre utilisateur configurable : `(|(mail={{login}})(sAMAccountName={{login}})(uid={{login}}))` par défaut
+- Attributs lus : `mail`, `displayName`, `cn`, `memberOf` (standard AD/LDAP)
+
+#### SSO OAuth2 (Synology SSO Server)
+- Nouveau mode `sso` (SSO uniquement) et `sso+local` (bouton SSO + formulaire local visible)
+- Flux OAuth2 Authorization Code complet : redirection → callback → échange de token → récupération du profil
+- Endpoint `/api/auth/sso` (redirection) et `/api/auth/sso/callback` (callback)
+- Page `sso-callback.html` — finalise la session après retour du SSO
+- Option "Ignorer erreurs SSL" pour les certificats auto-signés Synology
+- Rôle par défaut configurable si aucun groupe ne correspond
+- Endpoint public `GET /api/auth/config` exposant les providers disponibles (sans credentials)
+
+#### Mapping des groupes (LDAP et SSO)
+- Tableau de mapping configurable dans l'interface admin : **nom de groupe CN → rôle applicatif**
+- Valeurs par défaut : `DISTRIB_ADMIN` → Admin, `DISTRIB_CREATEUR` → Créateur
+- Tout utilisateur n'appartenant à aucun groupe mappé est **refusé** (accès protégé)
+- Mapping partagé LDAP/SSO, personnalisable ligne par ligne (ajouter, supprimer, modifier)
+
+#### Bouton SSO sur la page de connexion
+- Bouton "Se connecter avec Synology SSO" affiché dynamiquement si le SSO est activé
+- Le formulaire email/mot de passe est masqué en mode `sso` uniquement
+- Message d'erreur SSO affiché via paramètre URL au retour d'un échec
+
+### ⚙️ Panneau admin — Onglet Authentification (nouveau)
+- Sélecteur visuel du mode : Local / LDAP+Local / LDAP uniquement / SSO+Local / SSO uniquement
+- Configuration LDAP : hôte, port, SSL, DN de base, DN service, mot de passe (masqué), filtre utilisateur
+- Configuration SSO : URL Synology, Client ID, Client Secret (masqué), scope, rôle par défaut, option SSL
+- **Test de connexion LDAP** : vérifie le bind service + recherche optionnelle d'un utilisateur de test (retourne DN, email, groupes)
+- **Test de connexion SSO** : vérifie l'accessibilité du serveur + affiche l'URI de redirection à configurer
+- Secrets non renvoyés en clair lors du chargement, non écrasés si non modifiés (placeholder `••••••••`)
+- Endpoints : `GET/PUT /api/admin/auth`, `POST /api/admin/auth/test-ldap`, `POST /api/admin/auth/test-sso`
+
+### 🗄️ Base de données
+- Nouvelle colonne `auth_provider` sur `app_users` (`local`, `ldap`, `sso`) — migration automatique
+- Nouveaux paramètres dans `app_settings` : `auth_mode`, `ldap_*`, `sso_*`, `auth_group_mapping`
+- Fonction `upsertExternalUser()` : crée ou met à jour un compte issu de LDAP/SSO à chaque connexion
+
+### 📦 Dépendances
+- Ajout de `ldapjs ^2.3.3` pour l'authentification LDAP/Active Directory
+- SSO OAuth2 géré via les modules Node.js natifs (`https`, `http`) — sans dépendance supplémentaire
+
+---
+
 ## [2.1.0] — 2026-05-30
 
 ### ⚙️ Paramètres du site (nouveau)
@@ -123,7 +174,8 @@ et ce projet respecte le [Versionnage Sémantique](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/wdebonne/web-distributions/compare/v2.1.0...HEAD
+[Non publié]: https://github.com/wdebonne/web-distributions/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/wdebonne/web-distributions/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/wdebonne/web-distributions/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/wdebonne/web-distributions/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/wdebonne/web-distributions/releases/tag/v1.0.0

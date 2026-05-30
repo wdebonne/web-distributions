@@ -1,19 +1,20 @@
 {
   "name": "distribution-tracker",
-  "version": "2.1.0",
-  "description": "Suivi de distribution de courriers — avec gestion des rôles Admin/Créateur et personnalisation du site",
+  "version": "2.2.0",
+  "description": "Suivi de distribution de courriers — avec gestion des rôles Admin/Créateur, personnalisation du site, LDAP et SSO",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "sql.js": "^1.12.0",
+    "bcryptjs": "^2.4.3",
     "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "ldapjs": "^2.3.3",
+    "nodemailer": "^6.9.9",
     "qrcode": "^1.5.3",
     "socket.io": "^4.6.1",
-    "uuid": "^9.0.0",
-    "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2",
-    "nodemailer": "^6.9.9"
+    "sql.js": "^1.12.0",
+    "uuid": "^9.0.0"
   }
 }

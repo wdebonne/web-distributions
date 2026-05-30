@@ -1,4 +1,4 @@
-// Distribution Tracker v2.1.0 — Database layer (sql.js / SQLite WASM)
+// Distribution Tracker v2.2.0 — Database layer (sql.js / SQLite WASM)
 const initSqlJs = require('sql.js');
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
@@ -106,6 +106,22 @@ async function init() {
     ['login_gradient_to',   '#0D47A1'],
     ['footer_text',         ''],
     ['login_message',       ''],
+    // ── Auth externes ──────────────────────────────
+    ['auth_mode',           'local'],
+    ['ldap_host',           ''],
+    ['ldap_port',           '389'],
+    ['ldap_use_ssl',        '0'],
+    ['ldap_base_dn',        ''],
+    ['ldap_bind_dn',        ''],
+    ['ldap_bind_password',  ''],
+    ['ldap_user_filter',    '(|(mail={{login}})(sAMAccountName={{login}})(uid={{login}}))'],
+    ['auth_group_mapping',  '[{"group":"DISTRIB_ADMIN","role":"admin"},{"group":"DISTRIB_CREATEUR","role":"creator"}]'],
+    ['sso_url',             ''],
+    ['sso_client_id',       ''],
+    ['sso_client_secret',   ''],
+    ['sso_scope',           'user_info'],
+    ['sso_ignore_ssl',      '0'],
+    ['sso_default_role',    ''],
   ];
   SETTING_DEFAULTS.forEach(([k, v]) => {
     try { db.run('INSERT OR IGNORE INTO app_settings (key,value) VALUES (?,?)', [k, v]); } catch(e) {}
@@ -114,6 +130,7 @@ async function init() {
   // ── Migrations ────────────────────────────────────
   try { db.run('ALTER TABLE distributions ADD COLUMN creator_id TEXT'); } catch(e) {}
   try { db.run('ALTER TABLE dist_users ADD COLUMN steps INTEGER DEFAULT 0'); } catch(e) {}
+  try { db.run("ALTER TABLE app_users ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'local'"); } catch(e) {}
 
   // ── Données par défaut ────────────────────────────
   await ensureDefaultAdmin();
@@ -231,6 +248,20 @@ module.exports = {
   setResetToken(id, token, exp)  { run('UPDATE app_users SET reset_token=?,reset_expires=? WHERE id=?', [token, exp, id]); },
   clearResetToken(id)            { run('UPDATE app_users SET reset_token=NULL,reset_expires=NULL WHERE id=?', [id]); },
   deleteAppUser(id)              { run('DELETE FROM app_users WHERE id=?', [id]); },
+
+  // Crée ou met à jour un compte provenant de LDAP ou SSO
+  upsertExternalUser({ email, name, role, provider }) {
+    const existing = get('SELECT * FROM app_users WHERE LOWER(email)=LOWER(?)', [email]);
+    if (existing) {
+      run('UPDATE app_users SET name=?,role=?,auth_provider=?,active=1,force_password_change=0 WHERE id=?',
+        [name, role, provider, existing.id]);
+      return existing.id;
+    }
+    const id = provider + '-' + Date.now();
+    run('INSERT INTO app_users (id,email,name,password_hash,role,active,force_password_change,created_at,auth_provider) VALUES (?,?,?,?,?,1,0,?,?)',
+      [id, email.trim().toLowerCase(), name, 'EXTERNAL_AUTH_ONLY', role, Date.now(), provider]);
+    return id;
+  },
 
   // ── Distributions ─────────────────────────────────
   createDistribution({ id, name, description, now, creatorId }) {
