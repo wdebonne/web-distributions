@@ -6,16 +6,16 @@ services:
     container_name: distribution-tracker
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      # Le port hôte ET le port container suivent la variable PORT
+      # Portainer : définir PORT=3078 (ou autre) dans les variables d'environnement
+      - "${PORT:-3000}:${PORT:-3000}"
     volumes:
       - distribution-data:/data
     environment:
-      - PORT=3000
-      # URL publique de l'app (pour les QR codes) — MODIFIER selon votre configuration
-      - BASE_URL=http://localhost:3000
-      # Mot de passe admin — CHANGER en production !
-      - ADMIN_PASSWORD=admin123
-      - DATA_DIR=/data
+      - PORT=${PORT:-3000}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      - BASE_URL=${BASE_URL:-}
+      - DATA_DIR=${DATA_DIR:-/data}
 
 volumes:
   distribution-data:
