@@ -293,10 +293,11 @@ app.get('/api/settings', (req, res) => {
 app.get('/api/auth/config', (req, res) => {
   const s    = db.getSettings();
   const mode = s.auth_mode || 'local';
+  // localEnabled = formulaire visible (local ou LDAP utilisent le formulaire email/mdp)
   res.json({
-    localEnabled: !mode.startsWith('sso'),
-    ssoEnabled:   mode === 'sso' || mode === 'sso+local',
-    ldapEnabled:  mode === 'ldap' || mode === 'ldap+local',
+    localEnabled: mode.includes('local') || mode.includes('ldap'),
+    ssoEnabled:   mode.includes('sso'),
+    ldapEnabled:  mode.includes('ldap'),
     mode,
   });
 });
@@ -412,24 +413,30 @@ app.post('/api/auth/login', async (req, res) => {
 
   const s    = db.getSettings();
   const mode = s.auth_mode || 'local';
+  const hasLdap  = mode.includes('ldap');
+  const hasLocal = mode.includes('local');
+  const hasSsoOnly = mode === 'sso' || mode === 'ldap+sso'; // pas de local du tout
 
-  // Mode SSO uniquement → pas de login local
-  if (mode === 'sso') return res.status(403).json({ error: 'Authentification locale désactivée. Utilisez le SSO.' });
+  // Aucune méthode formulaire active → refus
+  if (!hasLdap && !hasLocal) {
+    return res.status(403).json({ error: 'Authentification locale désactivée. Utilisez le bouton SSO.' });
+  }
 
   // ── LDAP auth ──
-  if (mode === 'ldap' || mode === 'ldap+local') {
+  if (hasLdap) {
     try {
       const ldapUser = await authenticateLdap(email.trim(), password);
       if (ldapUser && ldapUser.role) {
-        const id = db.upsertExternalUser({ email: ldapUser.email, name: ldapUser.name, role: ldapUser.role, provider: 'ldap' });
+        const id   = db.upsertExternalUser({ email: ldapUser.email, name: ldapUser.name, role: ldapUser.role, provider: 'ldap' });
         const user = db.getUserById(id);
         db.updateLastLogin(id, Date.now());
         return res.json({ token: signToken(user), user: { id: user.id, email: user.email, name: user.name, role: user.role, forceChange: false } });
       }
-      if (mode === 'ldap') return res.status(401).json({ error: 'Identifiants LDAP incorrects ou groupe non autorisé' });
-      // ldap+local → fall through to local auth
+      // LDAP sans fallback local → refus
+      if (!hasLocal) return res.status(401).json({ error: 'Identifiants LDAP incorrects ou groupe non autorisé' });
+      // Sinon fall through vers local
     } catch(e) {
-      if (mode === 'ldap') return res.status(500).json({ error: 'Erreur LDAP : ' + e.message });
+      if (!hasLocal) return res.status(500).json({ error: 'Erreur LDAP : ' + e.message });
       console.warn('LDAP auth error (fallback to local):', e.message);
     }
   }

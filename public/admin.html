@@ -130,20 +130,42 @@
 
     /* Auth tab */
     .auth-tab-max { max-width:680px; }
-    .auth-mode-grid {
-      display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; margin-bottom:0;
+
+    /* Toggle switch */
+    .toggle-switch { position:relative; display:inline-block; width:46px; height:26px; flex-shrink:0; }
+    .toggle-switch input { opacity:0; width:0; height:0; }
+    .toggle-slider {
+      position:absolute; cursor:pointer; inset:0;
+      background:#CBD5E0; border-radius:26px; transition:.25s;
     }
-    .auth-mode-card {
-      border:2px solid var(--border); border-radius:var(--radius); padding:14px 12px;
-      cursor:pointer; transition:border-color .15s,background .15s; text-align:center;
-      background:var(--card);
+    .toggle-slider:before {
+      position:absolute; content:''; height:20px; width:20px;
+      left:3px; bottom:3px; background:#fff; border-radius:50%;
+      transition:.25s; box-shadow:0 1px 4px rgba(0,0,0,.2);
     }
-    .auth-mode-card:hover { border-color:var(--primary); }
-    .auth-mode-card.selected { border-color:var(--primary); background:var(--primary-light); }
-    .auth-mode-card input[type=radio] { display:none; }
-    .auth-mode-card-icon { font-size:22px; margin-bottom:6px; }
-    .auth-mode-card-label { font-size:13px; font-weight:700; color:var(--text); }
-    .auth-mode-card-sub   { font-size:11px; color:var(--text-light); margin-top:2px; }
+    .toggle-switch input:checked + .toggle-slider { background:var(--primary); }
+    .toggle-switch input:checked + .toggle-slider:before { transform:translateX(20px); }
+
+    /* Auth method rows */
+    .auth-method-row {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:16px 0; border-bottom:1px solid var(--border);
+    }
+    .auth-method-row:last-of-type { border-bottom:none; }
+    .auth-method-info { display:flex; align-items:center; gap:14px; }
+    .auth-method-icon { font-size:20px; width:34px; text-align:center; flex-shrink:0; }
+    .auth-method-name { font-weight:700; font-size:14px; color:var(--text); }
+    .auth-method-desc { font-size:12px; color:var(--text-light); margin-top:2px; }
+    .auth-method-right { display:flex; align-items:center; gap:10px; }
+    .auth-expand-btn {
+      background:none; border:1.5px solid var(--border); border-radius:6px;
+      padding:4px 10px; font-size:12px; cursor:pointer; color:var(--text-light);
+      transition:all .15s; white-space:nowrap;
+    }
+    .auth-expand-btn:hover { background:var(--bg); color:var(--text); border-color:var(--primary); }
+    .auth-expand-body {
+      padding:18px 0 6px; border-top:1px dashed var(--border); margin-top:4px;
+    }
 
     .settings-section-title {
       font-size:13px; font-weight:700; color:var(--text-light); letter-spacing:.4px;
@@ -420,40 +442,157 @@
       <div class="section-title" style="margin-bottom:24px;">Authentification externe</div>
       <div class="auth-tab-max">
 
-        <!-- Mode -->
+        <!-- ── Méthodes actives (toggles) ── -->
         <div class="form-card" style="margin-bottom:20px;">
-          <div class="settings-section-title">🔒 Mode d'authentification</div>
-          <div class="auth-mode-grid" id="auth-mode-grid">
-            <label class="auth-mode-card" onclick="selectAuthMode('local')">
-              <input type="radio" name="auth_mode" value="local">
-              <div class="auth-mode-card-icon">🔑</div>
-              <div class="auth-mode-card-label">Local</div>
-              <div class="auth-mode-card-sub">Email + mot de passe</div>
+          <div class="settings-section-title">🔒 Méthodes actives</div>
+
+          <!-- Local -->
+          <div class="auth-method-row">
+            <div class="auth-method-info">
+              <div class="auth-method-icon">🔑</div>
+              <div>
+                <div class="auth-method-name">Authentification locale</div>
+                <div class="auth-method-desc">Formulaire email + mot de passe sur la page de connexion</div>
+              </div>
+            </div>
+            <label class="toggle-switch" title="Activer / désactiver">
+              <input type="checkbox" id="auth-local-enabled" checked onchange="updateAuthMode()">
+              <span class="toggle-slider"></span>
             </label>
-            <label class="auth-mode-card" onclick="selectAuthMode('ldap+local')">
-              <input type="radio" name="auth_mode" value="ldap+local">
-              <div class="auth-mode-card-icon">🏢</div>
-              <div class="auth-mode-card-label">LDAP + Local</div>
-              <div class="auth-mode-card-sub">LDAP prioritaire, local si non trouvé</div>
-            </label>
-            <label class="auth-mode-card" onclick="selectAuthMode('ldap')">
-              <input type="radio" name="auth_mode" value="ldap">
-              <div class="auth-mode-card-icon">🏢</div>
-              <div class="auth-mode-card-label">LDAP uniquement</div>
-              <div class="auth-mode-card-sub">Active Directory / OpenLDAP</div>
-            </label>
-            <label class="auth-mode-card" onclick="selectAuthMode('sso+local')">
-              <input type="radio" name="auth_mode" value="sso+local">
-              <div class="auth-mode-card-icon">🔐</div>
-              <div class="auth-mode-card-label">SSO + Local</div>
-              <div class="auth-mode-card-sub">Bouton SSO + formulaire local</div>
-            </label>
-            <label class="auth-mode-card" onclick="selectAuthMode('sso')">
-              <input type="radio" name="auth_mode" value="sso">
-              <div class="auth-mode-card-icon">🔐</div>
-              <div class="auth-mode-card-label">SSO uniquement</div>
-              <div class="auth-mode-card-sub">Synology SSO Server</div>
-            </label>
+          </div>
+
+          <!-- LDAP -->
+          <div class="auth-method-row">
+            <div class="auth-method-info">
+              <div class="auth-method-icon">🏢</div>
+              <div>
+                <div class="auth-method-name">LDAP / Active Directory</div>
+                <div class="auth-method-desc">Synology Directory Server, OpenLDAP, Windows AD</div>
+              </div>
+            </div>
+            <div class="auth-method-right">
+              <button class="auth-expand-btn" onclick="toggleExpand('ldap')" id="ldap-expand-btn">⚙️ Configurer</button>
+              <label class="toggle-switch" title="Activer / désactiver">
+                <input type="checkbox" id="auth-ldap-enabled" onchange="updateAuthMode();autoExpand('ldap')">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+          <!-- LDAP config accordion -->
+          <div id="ldap-expand" style="display:none;">
+            <div class="auth-expand-body">
+              <div class="auth-info-box" style="margin-bottom:14px;">
+                Compatible Synology Active Directory (Directory Server) et OpenLDAP.<br>
+                Le compte service doit avoir les droits de lecture sur l'annuaire.
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Hôte LDAP *</label>
+                  <input type="text" id="ldap-host" placeholder="192.168.1.10 ou ldap.mondomaine.local">
+                </div>
+                <div class="form-group">
+                  <label>Port</label>
+                  <input type="number" id="ldap-port" value="389" min="1" max="65535">
+                </div>
+              </div>
+              <div class="form-group">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;">
+                  <input type="checkbox" id="ldap-ssl" style="width:auto;"> Utiliser LDAPS (SSL/TLS — port 636)
+                </label>
+              </div>
+              <div class="form-group">
+                <label>DN de base * <span class="text-muted text-sm">(Base DN)</span></label>
+                <input type="text" id="ldap-base-dn" placeholder="DC=mondomaine,DC=local">
+              </div>
+              <div class="form-group">
+                <label>DN du compte service * <span class="text-muted text-sm">(Bind DN)</span></label>
+                <input type="text" id="ldap-bind-dn" placeholder="CN=svc-distrib,CN=Users,DC=mondomaine,DC=local">
+              </div>
+              <div class="form-group">
+                <label>Mot de passe du compte service</label>
+                <input type="password" id="ldap-bind-password" placeholder="Laisser vide pour ne pas changer" autocomplete="new-password">
+              </div>
+              <div class="form-group">
+                <label>Filtre utilisateur <span class="text-muted text-sm">(avancé — <code>{{login}}</code> = valeur saisie)</span></label>
+                <input type="text" id="ldap-user-filter" placeholder="(|(mail={{login}})(sAMAccountName={{login}})(uid={{login}}))">
+              </div>
+              <hr style="margin:16px 0;border:none;border-top:1px solid var(--border);">
+              <div style="font-size:12px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px;">🧪 Test</div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Login de test <span class="text-muted text-sm">(optionnel)</span></label>
+                  <input type="text" id="ldap-test-login" placeholder="user@mondomaine.local">
+                </div>
+                <div class="form-group" style="display:flex;align-items:flex-end;">
+                  <button class="btn btn-ghost" style="width:100%;" onclick="testLdap()">🔍 Tester</button>
+                </div>
+              </div>
+              <div id="ldap-test-result" class="auth-test-result"></div>
+            </div>
+          </div>
+
+          <!-- SSO -->
+          <div class="auth-method-row" style="border-bottom:none;">
+            <div class="auth-method-info">
+              <div class="auth-method-icon">🔐</div>
+              <div>
+                <div class="auth-method-name">SSO Synology</div>
+                <div class="auth-method-desc">Bouton de connexion SSO sur la page de connexion</div>
+              </div>
+            </div>
+            <div class="auth-method-right">
+              <button class="auth-expand-btn" onclick="toggleExpand('sso')" id="sso-expand-btn">⚙️ Configurer</button>
+              <label class="toggle-switch" title="Activer / désactiver">
+                <input type="checkbox" id="auth-sso-enabled" onchange="updateAuthMode();autoExpand('sso')">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+          <!-- SSO config accordion -->
+          <div id="sso-expand" style="display:none;">
+            <div class="auth-expand-body">
+              <div class="auth-info-box" style="margin-bottom:14px;">
+                Installez le paquet <strong>SSO Server</strong> sur votre NAS (DSM → Centre de paquets).<br>
+                URI de redirection à configurer dans SSO Server : <code id="sso-redirect-hint">…</code>
+              </div>
+              <div class="form-group">
+                <label>URL du serveur Synology * <span class="text-muted text-sm">(avec port)</span></label>
+                <input type="text" id="sso-url" placeholder="https://nas.mondomaine.local:5001" oninput="updateSsoRedirectHint()">
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Client ID *</label>
+                  <input type="text" id="sso-client-id" placeholder="Généré dans SSO Server">
+                </div>
+                <div class="form-group">
+                  <label>Client Secret *</label>
+                  <input type="password" id="sso-client-secret" placeholder="Laisser vide pour ne pas changer" autocomplete="new-password">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Scope <span class="text-muted text-sm">(défaut : user_info)</span></label>
+                  <input type="text" id="sso-scope" placeholder="user_info">
+                </div>
+                <div class="form-group">
+                  <label>Rôle si aucun groupe ne correspond</label>
+                  <select id="sso-default-role">
+                    <option value="">Refus d'accès (recommandé)</option>
+                    <option value="creator">Créateur</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;">
+                  <input type="checkbox" id="sso-ignore-ssl" style="width:auto;"> Ignorer erreurs SSL <span class="text-muted text-sm">(certificat auto-signé Synology)</span>
+                </label>
+              </div>
+              <hr style="margin:16px 0;border:none;border-top:1px solid var(--border);">
+              <div style="font-size:12px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px;">🧪 Test</div>
+              <button class="btn btn-ghost" onclick="testSso()">🔍 Vérifier l'accessibilité du serveur SSO</button>
+              <div id="sso-test-result" class="auth-test-result"></div>
+            </div>
           </div>
         </div>
 
@@ -462,113 +601,13 @@
           <div class="settings-section-title">👥 Mapping des groupes → rôles</div>
           <div class="auth-info-box">
             Les utilisateurs appartenant à un groupe non listé <strong>n'auront pas accès</strong> à l'application.<br>
-            Groupe par défaut : <code>DISTRIB_ADMIN</code> → Admin, <code>DISTRIB_CREATEUR</code> → Créateur.
+            Groupes par défaut : <code>DISTRIB_ADMIN</code> → Admin &nbsp;|&nbsp; <code>DISTRIB_CREATEUR</code> → Créateur.
           </div>
           <table class="group-mapping-table">
-            <thead><tr><th style="width:55%">Nom du groupe (CN)</th><th>Rôle dans l'application</th><th style="width:40px;"></th></tr></thead>
+            <thead><tr><th style="width:55%">Nom du groupe (CN exact)</th><th>Rôle dans l'application</th><th style="width:40px;"></th></tr></thead>
             <tbody id="mapping-tbody"></tbody>
           </table>
-          <button class="btn btn-ghost btn-sm" style="margin-top:4px;" onclick="addMappingRow()">+ Ajouter un groupe</button>
-        </div>
-
-        <!-- ── Section LDAP ── -->
-        <div class="form-card auth-section" id="ldap-section" style="margin-bottom:20px;">
-          <div class="settings-section-title">🏢 Configuration LDAP (Synology Directory Server)</div>
-          <div class="auth-info-box">
-            Compatible Synology Active Directory (Directory Server) et OpenLDAP.<br>
-            Le compte service doit avoir les droits de lecture sur l'annuaire.
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Hôte LDAP *</label>
-              <input type="text" id="ldap-host" placeholder="192.168.1.10 ou ldap.mondomaine.local">
-            </div>
-            <div class="form-group">
-              <label>Port</label>
-              <input type="number" id="ldap-port" value="389" min="1" max="65535">
-            </div>
-          </div>
-          <div class="form-group">
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;">
-              <input type="checkbox" id="ldap-ssl" style="width:auto;"> Utiliser LDAPS (SSL/TLS — port 636)
-            </label>
-          </div>
-          <div class="form-group">
-            <label>DN de base * <span class="text-muted text-sm">(Base DN de recherche)</span></label>
-            <input type="text" id="ldap-base-dn" placeholder="DC=mondomaine,DC=local">
-          </div>
-          <div class="form-group">
-            <label>DN du compte service * <span class="text-muted text-sm">(Bind DN)</span></label>
-            <input type="text" id="ldap-bind-dn" placeholder="CN=svc-distrib,CN=Users,DC=mondomaine,DC=local">
-          </div>
-          <div class="form-group">
-            <label>Mot de passe du compte service</label>
-            <input type="password" id="ldap-bind-password" placeholder="Laisser vide pour ne pas changer" autocomplete="new-password">
-          </div>
-          <div class="form-group" style="margin-bottom:0;">
-            <label>Filtre utilisateur <span class="text-muted text-sm">(avancé — <code>{{login}}</code> = valeur saisie)</span></label>
-            <input type="text" id="ldap-user-filter" placeholder="(|(mail={{login}})(sAMAccountName={{login}})(uid={{login}}))">
-          </div>
-
-          <!-- Test LDAP -->
-          <hr style="margin:20px 0;border:none;border-top:1px solid var(--border);">
-          <div class="settings-section-title">🧪 Test de connexion LDAP</div>
-          <div class="form-row">
-            <div class="form-group"><label>Login de test <span class="text-muted text-sm">(optionnel)</span></label>
-              <input type="text" id="ldap-test-login" placeholder="user@mondomaine.local">
-            </div>
-            <div class="form-group" style="display:flex;align-items:flex-end;">
-              <button class="btn btn-ghost" style="width:100%;" onclick="testLdap()">🔍 Tester la connexion</button>
-            </div>
-          </div>
-          <div id="ldap-test-result" class="auth-test-result"></div>
-        </div>
-
-        <!-- ── Section SSO ── -->
-        <div class="form-card auth-section" id="sso-section" style="margin-bottom:20px;">
-          <div class="settings-section-title">🔐 Configuration SSO (Synology SSO Server)</div>
-          <div class="auth-info-box">
-            Installez le paquet <strong>SSO Server</strong> sur votre NAS Synology (DSM → Centre de paquets).<br>
-            Créez ensuite une application OAuth avec comme URI de redirection : <code id="sso-redirect-hint">…</code>
-          </div>
-          <div class="form-group">
-            <label>URL du serveur Synology * <span class="text-muted text-sm">(avec port si nécessaire)</span></label>
-            <input type="text" id="sso-url" placeholder="https://nas.mondomaine.local:5001"
-              oninput="updateSsoRedirectHint()">
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Client ID *</label>
-              <input type="text" id="sso-client-id" placeholder="Généré dans SSO Server">
-            </div>
-            <div class="form-group">
-              <label>Client Secret *</label>
-              <input type="password" id="sso-client-secret" placeholder="Laisser vide pour ne pas changer" autocomplete="new-password">
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Scope <span class="text-muted text-sm">(défaut : user_info)</span></label>
-            <input type="text" id="sso-scope" placeholder="user_info">
-          </div>
-          <div class="form-group">
-            <label>Rôle par défaut <span class="text-muted text-sm">(si aucun groupe ne correspond — laisser vide = refus d'accès)</span></label>
-            <select id="sso-default-role">
-              <option value="">Refus d'accès (recommandé)</option>
-              <option value="creator">Créateur</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
-          <div class="form-group" style="margin-bottom:0;">
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;">
-              <input type="checkbox" id="sso-ignore-ssl" style="width:auto;"> Ignorer les erreurs SSL <span class="text-muted text-sm">(certificat auto-signé Synology)</span>
-            </label>
-          </div>
-
-          <!-- Test SSO -->
-          <hr style="margin:20px 0;border:none;border-top:1px solid var(--border);">
-          <div class="settings-section-title">🧪 Test de connexion SSO</div>
-          <button class="btn btn-ghost" onclick="testSso()">🔍 Vérifier l'accessibilité du serveur SSO</button>
-          <div id="sso-test-result" class="auth-test-result"></div>
+          <button class="btn btn-ghost btn-sm" style="margin-top:6px;" onclick="addMappingRow()">+ Ajouter un groupe</button>
         </div>
 
         <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
@@ -988,22 +1027,44 @@ function updateGradPreview() {
 }
 
 // ── Auth ─────────────────────────────────────────────
-let currentAuthMode = 'local';
 let authGroupMapping = [
   { group: 'DISTRIB_ADMIN',    role: 'admin'   },
   { group: 'DISTRIB_CREATEUR', role: 'creator' },
 ];
 
-function selectAuthMode(mode) {
-  currentAuthMode = mode;
-  document.querySelectorAll('.auth-mode-card').forEach(c => {
-    c.classList.toggle('selected', c.querySelector('input').value === mode);
-  });
-  const hasLdap = mode === 'ldap' || mode === 'ldap+local';
-  const hasSso  = mode === 'sso'  || mode === 'sso+local';
-  document.getElementById('ldap-section').style.display        = hasLdap           ? 'block' : 'none';
-  document.getElementById('sso-section').style.display         = hasSso            ? 'block' : 'none';
-  document.getElementById('auth-mapping-section').style.display = (hasLdap || hasSso) ? 'block' : 'none';
+function buildAuthMode() {
+  const localOn = document.getElementById('auth-local-enabled').checked;
+  const ldapOn  = document.getElementById('auth-ldap-enabled').checked;
+  const ssoOn   = document.getElementById('auth-sso-enabled').checked;
+  const parts = [];
+  if (ldapOn)  parts.push('ldap');
+  if (ssoOn)   parts.push('sso');
+  if (localOn || parts.length === 0) parts.push('local');
+  return parts.join('+');
+}
+
+function updateAuthMode() {
+  const ldapOn = document.getElementById('auth-ldap-enabled').checked;
+  const ssoOn  = document.getElementById('auth-sso-enabled').checked;
+  document.getElementById('auth-mapping-section').style.display = (ldapOn || ssoOn) ? 'block' : 'none';
+}
+
+function toggleExpand(key) {
+  const el  = document.getElementById(key + '-expand');
+  const btn = document.getElementById(key + '-expand-btn');
+  const open = el.style.display === 'none' || el.style.display === '';
+  el.style.display = open ? 'block' : 'none';
+  if (btn) btn.textContent = open ? '▲ Replier' : '⚙️ Configurer';
+}
+
+function autoExpand(key) {
+  const enabled = document.getElementById('auth-' + key + '-enabled').checked;
+  const el  = document.getElementById(key + '-expand');
+  const btn = document.getElementById(key + '-expand-btn');
+  if (enabled && el.style.display !== 'block') {
+    el.style.display = 'block';
+    if (btn) btn.textContent = '▲ Replier';
+  }
 }
 
 function renderMappingTable() {
@@ -1033,7 +1094,11 @@ async function loadAuth() {
   updateSsoRedirectHint();
   const s = await apiFetch('/api/admin/auth').then(r => r.json()).catch(() => ({}));
 
-  selectAuthMode(s.auth_mode || 'local');
+  const mode = s.auth_mode || 'local';
+  document.getElementById('auth-local-enabled').checked = mode.includes('local');
+  document.getElementById('auth-ldap-enabled').checked  = mode.includes('ldap');
+  document.getElementById('auth-sso-enabled').checked   = mode.includes('sso');
+  updateAuthMode();
 
   // LDAP
   document.getElementById('ldap-host').value         = s.ldap_host         || '';
@@ -1063,7 +1128,7 @@ async function loadAuth() {
 async function saveAuth() {
   const msg = document.getElementById('auth-msg');
   const body = {
-    auth_mode:          currentAuthMode,
+    auth_mode:          buildAuthMode(),
     ldap_host:          document.getElementById('ldap-host').value.trim(),
     ldap_port:          document.getElementById('ldap-port').value,
     ldap_use_ssl:       document.getElementById('ldap-ssl').checked ? '1' : '0',
