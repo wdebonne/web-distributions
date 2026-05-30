@@ -3,9 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#1565C0">
+  <meta name="theme-color" content="#1565C0" id="meta-theme">
   <title>Suivi en direct</title>
   <link rel="stylesheet" href="style.css">
+  <link id="dyn-favicon" rel="icon" href="data:,">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
     body { overflow: hidden; }
@@ -121,6 +122,20 @@
 const TOKEN   = localStorage.getItem('authToken');
 const ME      = JSON.parse(localStorage.getItem('authUser') || '{}');
 if (!TOKEN)   location.replace('login.html');
+
+// ── Branding ──────────────────────────────────────────
+(async function() {
+  try {
+    const r = await fetch('/api/settings'); if (!r.ok) return;
+    const s = await r.json();
+    const root = document.documentElement, p = s.primary_color;
+    if (p && /^#[0-9a-fA-F]{6}$/.test(p)) {
+      root.style.setProperty('--primary', p);
+      document.getElementById('meta-theme').content = p;
+    }
+    if (s.favicon_url) document.getElementById('dyn-favicon').href = s.favicon_url;
+  } catch(e) {}
+})();
 
 const params  = new URLSearchParams(location.search);
 const DIST_ID = params.get('id');

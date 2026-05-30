@@ -1,4 +1,4 @@
-# Documentation API — Distribution Tracker v2.0.0
+# Documentation API — Distribution Tracker v2.1.0
 
 L'API REST est exposée par le serveur Express. Toutes les requêtes et réponses utilisent le format **JSON**.
 
@@ -6,7 +6,7 @@ L'API REST est exposée par le serveur Express. Toutes les requêtes et réponse
 
 ## Authentification
 
-Depuis la v2.0.0, l'API utilise des **tokens JWT** au lieu du mot de passe en header.
+L'API utilise des **tokens JWT** au lieu du mot de passe en header.
 
 ### Obtenir un token
 ```
@@ -25,6 +25,57 @@ Authorization: Bearer <token>
 - 🔑 **Admin** — rôle `admin` uniquement
 - 🗺️ **Propriétaire** — créateur de la distribution ou co-gérant/délégué
 - 🌐 **Public** — aucune authentification requise
+
+---
+
+## Paramètres du site *(v2.1)*
+
+### `GET /api/settings` 🌐
+Retourne les paramètres publics du site (branding, couleurs, message de connexion).
+
+**Réponse 200**
+```json
+{
+  "site_name": "Distribution Tracker",
+  "site_tagline": "Suivi de distribution de courriers",
+  "logo_emoji": "🗺️",
+  "favicon_url": "",
+  "primary_color": "#1565C0",
+  "login_gradient_from": "#1565C0",
+  "login_gradient_to": "#0D47A1",
+  "footer_text": "",
+  "login_message": ""
+}
+```
+
+---
+
+### `GET /api/admin/settings` 🔑
+Retourne tous les paramètres du site (identique au endpoint public pour l'instant).
+
+---
+
+### `PUT /api/admin/settings` 🔑
+Sauvegarde les paramètres du site.
+
+**Body**
+```json
+{
+  "site_name": "Mon Site",
+  "site_tagline": "Mon slogan",
+  "logo_emoji": "📬",
+  "favicon_url": "https://exemple.fr/favicon.ico",
+  "primary_color": "#1976D2",
+  "login_gradient_from": "#1976D2",
+  "login_gradient_to": "#0D47A1",
+  "footer_text": "Mon Site v1.0",
+  "login_message": "Bienvenue sur notre plateforme !"
+}
+```
+
+Tous les champs sont optionnels — seuls les champs présents sont mis à jour.
+
+**Réponse 200** `{ "success": true }`
 
 ---
 
@@ -304,15 +355,17 @@ Rapport complet avec statistiques calculées.
   "distribution": { "id": "...", "name": "...", "status": "closed" },
   "users": [{
     "id": "usr_abc", "name": "Aline", "color": "#F44336",
-    "status": "done", "distance": 4.512, "duration": 7200000, "pointCount": 842
+    "status": "done", "distance": 4.512, "duration": 7200000,
+    "pointCount": 842, "steps": 6240
   }],
   "routes": [ /* même format que /routes */ ],
   "totalDistance": 12.847,
-  "totalDuration": 18000000
+  "totalDuration": 18000000,
+  "totalSteps": 18720
 }
 ```
 
-> `distance` en km (3 décimales) — Haversine  
+> `distance` en km (3 décimales) — Haversine
 > `duration` en ms — somme des sessions actives hors pauses
 
 ---
@@ -384,6 +437,7 @@ Connexion sur la même URL que l'application.
 | `pause` | `{ userId, token }` | Mettre en pause |
 | `resume` | `{ userId, token }` | Reprendre |
 | `done` | `{ userId, token }` | Terminer |
+| `steps` | `{ userId, token, steps }` | Nombre de pas (podomètre) |
 
 ### Événements serveur → clients
 
@@ -393,3 +447,19 @@ Connexion sur la même URL que l'application.
 | `location` | `{ userId, lat, lon, ts, segment }` | Position d'un participant |
 | `user-status` | `{ userId, status, segment? }` | Changement de statut |
 | `distribution-closed` | *(vide)* | Distribution clôturée |
+
+---
+
+## Schéma base de données
+
+| Table | Description |
+|---|---|
+| `distributions` | Distributions avec créateur et statut |
+| `dist_users` | Participants (sans compte) |
+| `locations` | Points GPS par segment |
+| `sessions` | Sessions de suivi (pour la durée) |
+| `app_users` | Comptes Admin/Créateur |
+| `dist_managers` | Co-gérants et délégués |
+| `smtp_settings` | Configuration email |
+| `email_templates` | Templates bienvenue / réinitialisation |
+| `app_settings` | Paramètres du site (branding, couleurs) *(v2.1)* |

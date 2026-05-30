@@ -1,4 +1,4 @@
-// Distribution Tracker v2.0.0 — Database layer (sql.js / SQLite WASM)
+// Distribution Tracker v2.1.0 — Database layer (sql.js / SQLite WASM)
 const initSqlJs = require('sql.js');
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
@@ -89,6 +89,27 @@ async function init() {
       name TEXT PRIMARY KEY, subject TEXT NOT NULL, html TEXT NOT NULL
     );
   `);
+
+  // ── App settings ──────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT ''
+    );
+  `);
+  const SETTING_DEFAULTS = [
+    ['site_name',           'Distribution Tracker'],
+    ['site_tagline',        'Suivi de distribution de courriers'],
+    ['logo_emoji',          '🗺️'],
+    ['favicon_url',         ''],
+    ['primary_color',       '#1565C0'],
+    ['login_gradient_from', '#1565C0'],
+    ['login_gradient_to',   '#0D47A1'],
+    ['footer_text',         ''],
+    ['login_message',       ''],
+  ];
+  SETTING_DEFAULTS.forEach(([k, v]) => {
+    try { db.run('INSERT OR IGNORE INTO app_settings (key,value) VALUES (?,?)', [k, v]); } catch(e) {}
+  });
 
   // ── Migrations ────────────────────────────────────
   try { db.run('ALTER TABLE distributions ADD COLUMN creator_id TEXT'); } catch(e) {}
@@ -262,6 +283,17 @@ module.exports = {
       [distId, userId, 'delegate', now]);
   },
   removeDelegate(distId) { run('DELETE FROM dist_managers WHERE distribution_id=? AND type=?', [distId, 'delegate']); },
+
+  // ── App settings ─────────────────────────────────
+  getSettings() {
+    const rows = all('SELECT key,value FROM app_settings');
+    return Object.fromEntries(rows.map(r => [r.key, r.value]));
+  },
+  saveSettings(obj) {
+    Object.entries(obj).forEach(([k, v]) => {
+      run('INSERT OR REPLACE INTO app_settings (key,value) VALUES (?,?)', [k, String(v ?? '')]);
+    });
+  },
 
   // ── SMTP ──────────────────────────────────────────
   getSmtpSettings()  { return get('SELECT * FROM smtp_settings WHERE id=1'); },

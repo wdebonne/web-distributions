@@ -1,7 +1,7 @@
 {
   "name": "distribution-tracker",
-  "version": "2.0.0",
-  "description": "Suivi de distribution de courriers — avec gestion des rôles Admin/Créateur",
+  "version": "2.1.0",
+  "description": "Suivi de distribution de courriers — avec gestion des rôles Admin/Créateur et personnalisation du site",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

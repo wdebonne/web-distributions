@@ -13,6 +13,46 @@ et ce projet respecte le [Versionnage Sémantique](https://semver.org/lang/fr/).
 
 ---
 
+## [2.1.0] — 2026-05-30
+
+### ⚙️ Paramètres du site (nouveau)
+- Nouvel onglet **Paramètres** dans le panneau admin (`⚙️`)
+- **Nom du site** personnalisable (affiché dans les en-têtes et onglets navigateur)
+- **Logo emoji** personnalisable avec aperçu en temps réel
+- **Slogan** affiché sur la page de connexion (panneau héro)
+- **URL du favicon** avec aperçu miniature instantané
+- **Texte de pied de page** (version, copyright…)
+- **Message d'accueil** optionnel sur la page de connexion
+- **Couleur principale** de l'interface avec sélecteur couleur + champ hex synchronisé
+- **Dégradé de la page de connexion** : deux couleurs configurables avec aperçu live
+- Persistance en base SQLite (`app_settings`) — survivent aux redéploiements
+- API publique `GET /api/settings` et admin `GET/PUT /api/admin/settings`
+
+### 🎨 Refonte visuelle complète
+- **Page de connexion** redessinée : disposition split bureau (héro + formulaire) / carte mobile
+  - Panneau gauche (bureau) : logo, titre, slogan animé et liste des fonctionnalités
+  - Panneau droit / carte mobile : formulaire moderne, affichage/masquage du mot de passe
+  - Animations de fond (blobs flottants) cohérentes avec le dégradé configuré
+- **Pages auth** (`forgot-password`, `reset-password`, `change-password`) redessinées avec la même cohérence visuelle, boutons afficher/masquer mot de passe, messages d'état stylisés
+- **Panneau admin** : en-tête amélioré avec badge de rôle, stats cards avec bordure accent et effet hover
+- **style.css** modernisé : système de shadows en couches, `border-radius` cohérent (`--radius-sm/lg`), focus ring sur les inputs, transitions fluides, box-shadow sur les boutons au hover
+
+### 🌐 Branding dynamique (toutes les pages)
+- Chaque page charge `/api/settings` au démarrage et applique instantanément :
+  - `--primary` CSS custom property (+ dark/light dérivés calculés)
+  - Favicon via `<link id="dyn-favicon">`
+  - `theme-color` meta tag (barre de statut mobile)
+  - Nom du site dans les attributs `data-site-name` / `data-site-logo`
+  - Titre de l'onglet navigateur
+- Pages concernées : `login`, `admin`, `creator`, `track`, `report`, `forgot-password`, `reset-password`, `change-password`
+
+### 🔧 Technique
+- Nouvelle table SQLite `app_settings` (clé/valeur) avec migration automatique
+- 3 nouveaux endpoints API : `GET /api/settings`, `GET /api/admin/settings`, `PUT /api/admin/settings`
+- Utilitaire `_darken` / `_lighten` pour dériver les variantes de couleur en JavaScript pur
+
+---
+
 ## [2.0.0] — 2026-05-30
 
 ### 🔐 Authentification & rôles (nouveau)
@@ -36,22 +76,19 @@ et ce projet respecte le [Versionnage Sémantique](https://semver.org/lang/fr/).
 
 ### 🗺️ Tableau de bord Créateur (nouveau)
 - Interface dédiée `creator.html` avec onglets "Mes distributions" et "Partagées avec moi"
-- **Délégation** : confier la gestion complète d'une distribution à un autre créateur (congés, maladie)
+- **Délégation** : confier la gestion complète d'une distribution à un autre créateur
 - **Co-gérants** : ajouter plusieurs collaborateurs en accès suivi/rapport
 - Révocation de délégation et de co-gestion en un clic
-- Section "Partagées avec moi" : distributions reçues par délégation ou co-gestion
 - Badge visuel pour distinguer délégué / co-gérant
 
 ### 🗄️ Persistance des données (corrigé)
 - `docker-compose.yml` : bind mount direct sur `/opt/web-distributions/data` (hôte)
 - Les données survivent désormais à tout redéploiement, rebuild ou mise à jour Portainer
-- Plus de perte de données lors d'un `Pull and redeploy` dans Portainer
 
 ### 🔧 Technique
 - Nouvelles dépendances : `bcryptjs`, `jsonwebtoken`, `nodemailer`
 - Nouvelles tables SQLite : `app_users`, `dist_managers`, `smtp_settings`, `email_templates`
-- Migration automatique des données existantes (ajout `creator_id` aux distributions orphelines)
-- `track.html` et `report.html` : authentification JWT localStorage (suppression de `?pwd=` en URL)
+- Migration automatique des données existantes
 - Nouvelles pages : `login.html`, `forgot-password.html`, `reset-password.html`, `change-password.html`
 - Variables d'environnement ajoutées : `ADMIN_EMAIL`, `JWT_SECRET`
 
@@ -86,6 +123,7 @@ et ce projet respecte le [Versionnage Sémantique](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/wdebonne/web-distributions/compare/v2.0.0...HEAD
+[Non publié]: https://github.com/wdebonne/web-distributions/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/wdebonne/web-distributions/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/wdebonne/web-distributions/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/wdebonne/web-distributions/releases/tag/v1.0.0

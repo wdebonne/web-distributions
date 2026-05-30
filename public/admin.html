@@ -3,71 +3,147 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#1565C0">
+  <meta name="theme-color" content="#1565C0" id="meta-theme">
   <title>Administration — Distribution Tracker</title>
   <link rel="stylesheet" href="style.css">
+  <link id="dyn-favicon" rel="icon" href="data:,">
   <style>
     body { overflow:hidden; }
     .app-layout { display:flex;flex-direction:column;height:100vh; }
 
     /* Header */
-    .app-header { background:var(--primary);color:#fff;height:52px;padding:0 20px;
-      display:flex;align-items:center;justify-content:space-between;flex-shrink:0; }
-    .app-header-title { font-weight:700;font-size:16px; }
-    .app-header-user  { display:flex;align-items:center;gap:10px;font-size:13px;opacity:.9; }
+    .app-header {
+      background: var(--primary); color:#fff; height:54px;
+      padding: 0 20px; padding-top: var(--safe-top);
+      display:flex; align-items:center; justify-content:space-between;
+      flex-shrink:0; box-shadow: 0 2px 12px rgba(0,0,0,.2);
+    }
+    .app-header-brand {
+      display:flex; align-items:center; gap:10px;
+      font-weight:700; font-size:16px;
+    }
+    .app-header-brand .brand-logo { font-size:20px; }
+    .app-header-badge {
+      background: rgba(255,255,255,.18); border-radius:6px;
+      padding:2px 8px; font-size:11px; font-weight:700;
+      letter-spacing:.5px; text-transform:uppercase;
+    }
+    .app-header-right { display:flex; align-items:center; gap:10px; font-size:13px; }
+    .app-header-user  { opacity:.85; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
     /* Tab nav */
-    .tab-nav { display:flex;background:#fff;border-bottom:2px solid var(--border);flex-shrink:0;overflow-x:auto; }
-    .tab-btn { padding:12px 20px;border:none;background:none;font-size:14px;font-weight:600;
-      color:var(--text-light);cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent;
-      margin-bottom:-2px;transition:color .15s,border-color .15s; }
+    .tab-nav {
+      display:flex; background:#fff;
+      border-bottom:2px solid var(--border);
+      flex-shrink:0; overflow-x:auto;
+      scrollbar-width:none;
+    }
+    .tab-nav::-webkit-scrollbar { display:none; }
+    .tab-btn {
+      padding:13px 18px; border:none; background:none;
+      font-size:13.5px; font-weight:600;
+      color:var(--text-light); cursor:pointer; white-space:nowrap;
+      border-bottom:3px solid transparent; margin-bottom:-2px;
+      transition: color var(--transition), border-color var(--transition);
+      display:flex; align-items:center; gap:6px;
+    }
     .tab-btn:hover  { color:var(--text); }
-    .tab-btn.active { color:var(--primary);border-bottom-color:var(--primary); }
+    .tab-btn.active { color:var(--primary); border-bottom-color:var(--primary); }
 
     /* Content */
-    .tab-content { flex:1;overflow-y:auto;padding:24px;-webkit-overflow-scrolling:touch; }
-    .tab-panel { display:none; }
+    .tab-content { flex:1; overflow-y:auto; padding:24px; -webkit-overflow-scrolling:touch; }
+    .tab-panel   { display:none; }
     .tab-panel.active { display:block; }
 
     /* Section header */
-    .section-header { display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px; }
-    .section-title  { font-size:18px;font-weight:700; }
+    .section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; flex-wrap:wrap; gap:10px; }
+    .section-title  { font-size:18px; font-weight:700; }
+
+    /* Stats cards */
+    .stats-grid {
+      display:grid;
+      grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
+      gap:14px; margin-bottom:24px;
+    }
+    .stat-card {
+      background:var(--card); border-radius:var(--radius);
+      padding:20px 16px; box-shadow:var(--shadow);
+      text-align:center; border-top:3px solid var(--primary);
+      transition: box-shadow var(--transition), transform var(--transition);
+    }
+    .stat-card:hover { box-shadow:var(--shadow-lg); transform:translateY(-1px); }
+    .stat-card-val   { font-size:34px; font-weight:800; color:var(--primary); line-height:1.1; }
+    .stat-card-label { font-size:13px; color:var(--text-light); margin-top:6px; font-weight:500; }
 
     /* Data tables */
-    .data-table { width:100%;border-collapse:collapse;font-size:14px; }
-    .data-table th { background:var(--bg);padding:10px 12px;text-align:left;font-size:11px;font-weight:700;
-      color:var(--text-light);text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid var(--border); }
-    .data-table td { padding:12px;border-bottom:1px solid var(--border);vertical-align:middle; }
+    .data-table { width:100%; border-collapse:collapse; font-size:14px; }
+    .data-table th {
+      background:var(--bg); padding:10px 12px; text-align:left;
+      font-size:11px; font-weight:700; color:var(--text-light);
+      text-transform:uppercase; letter-spacing:.5px;
+      border-bottom:2px solid var(--border);
+    }
+    .data-table td { padding:12px; border-bottom:1px solid var(--border); vertical-align:middle; }
     .data-table tr:hover td { background:var(--bg); }
-    .table-actions { display:flex;gap:6px;flex-wrap:wrap; }
-    .role-badge { padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700; }
-    .role-admin   { background:#E8EAF6;color:#1A237E; }
-    .role-creator { background:#E8F5E9;color:#1B5E20; }
+    .table-actions { display:flex; gap:6px; flex-wrap:wrap; }
+    .role-badge { padding:3px 10px; border-radius:12px; font-size:11px; font-weight:700; }
+    .role-admin   { background:#E8EAF6; color:#1A237E; }
+    .role-creator { background:#E8F5E9; color:#1B5E20; }
 
     /* Forms in panels */
-    .form-card { background:var(--card);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);max-width:560px; }
-    .form-row  { display:grid;grid-template-columns:1fr 1fr;gap:16px; }
+    .form-card {
+      background:var(--card); border-radius:var(--radius);
+      padding:24px; box-shadow:var(--shadow); max-width:600px;
+    }
+    .form-row  { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
     @media (max-width:600px) { .form-row { grid-template-columns:1fr; } }
 
     /* SMTP status */
-    .smtp-status { display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;margin-bottom:16px;font-size:14px; }
-    .smtp-on  { background:#E8F5E9;color:#1B5E20; }
-    .smtp-off { background:#FFF8E1;color:#E65100; }
+    .smtp-status {
+      display:flex; align-items:center; gap:8px;
+      padding:11px 14px; border-radius:var(--radius-sm);
+      margin-bottom:16px; font-size:14px; font-weight:500;
+    }
+    .smtp-on  { background:#E8F5E9; color:#1B5E20; border:1px solid #A5D6A7; }
+    .smtp-off { background:#FFF8E1; color:#E65100; border:1px solid #FFE082; }
 
     /* Template editor */
-    .template-editor textarea { font-family:monospace;font-size:13px;min-height:260px;resize:vertical; }
-
-    /* Stats cards */
-    .stats-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-bottom:24px; }
-    .stat-card  { background:var(--card);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);text-align:center; }
-    .stat-card-val   { font-size:36px;font-weight:700;color:var(--primary); }
-    .stat-card-label { font-size:13px;color:var(--text-light);margin-top:4px; }
+    .template-editor textarea { font-family:monospace; font-size:13px; min-height:260px; resize:vertical; }
 
     /* Modale */
-    .modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px; }
-    .modal-box { background:#fff;border-radius:12px;padding:28px;width:100%;max-width:480px;box-shadow:0 8px 40px rgba(0,0,0,.2); }
-    .modal-title { font-size:17px;font-weight:700;margin-bottom:20px; }
-    .modal-actions { display:flex;gap:8px;justify-content:flex-end;margin-top:20px; }
+    .modal-overlay {
+      position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000;
+      display:flex; align-items:center; justify-content:center; padding:16px;
+      backdrop-filter:blur(2px);
+    }
+    .modal-box {
+      background:#fff; border-radius:var(--radius); padding:28px;
+      width:100%; max-width:480px; box-shadow:var(--shadow-lg);
+      animation:modalIn .2s ease;
+    }
+    @keyframes modalIn { from{opacity:0;transform:scale(.96) translateY(8px);} to{opacity:1;transform:scale(1) translateY(0);} }
+    .modal-title   { font-size:17px; font-weight:700; margin-bottom:20px; }
+    .modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:20px; }
+
+    /* Settings tab */
+    .settings-tab-max { max-width:640px; }
+    .color-row { display:flex; align-items:center; gap:10px; }
+    .color-picker {
+      width:44px; height:40px; border:1.5px solid var(--border);
+      border-radius:var(--radius-sm); cursor:pointer; padding:3px;
+      background:none; flex-shrink:0;
+    }
+    .color-hex {
+      font-family:monospace; max-width:100px; font-size:14px;
+    }
+    .grad-preview {
+      height:64px; border-radius:var(--radius-sm);
+      display:flex; align-items:center; justify-content:center;
+      color:#fff; font-weight:700; font-size:14px; letter-spacing:.2px;
+      margin-top:14px; transition:background .3s;
+      border:1px solid rgba(0,0,0,.05);
+    }
+    .favicon-preview-wrap { display:flex; align-items:center; gap:10px; flex:1; }
   </style>
 </head>
 <body>
@@ -75,20 +151,25 @@
 
   <!-- Header -->
   <header class="app-header">
-    <div class="app-header-title">🗺️ Distribution Tracker <span style="opacity:.5;font-weight:400;font-size:12px;">Admin</span></div>
-    <div class="app-header-user">
-      <span id="header-name"></span>
-      <button class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;" onclick="logout()">Déconnexion</button>
+    <div class="app-header-brand">
+      <span class="brand-logo" data-site-logo>🗺️</span>
+      <span data-site-name>Distribution Tracker</span>
+      <span class="app-header-badge">Admin</span>
+    </div>
+    <div class="app-header-right">
+      <span class="app-header-user" id="header-name"></span>
+      <button class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.25);" onclick="logout()">Déconnexion</button>
     </div>
   </header>
 
   <!-- Tabs -->
   <nav class="tab-nav">
-    <button class="tab-btn active" onclick="showTab('dashboard')">📊 Tableau de bord</button>
-    <button class="tab-btn" onclick="showTab('users')">👥 Utilisateurs</button>
-    <button class="tab-btn" onclick="showTab('distributions')">🗺️ Distributions</button>
-    <button class="tab-btn" onclick="showTab('smtp')">📧 SMTP</button>
-    <button class="tab-btn" onclick="showTab('templates')">✉️ Templates</button>
+    <button class="tab-btn active" onclick="showTab('dashboard',this)">📊 Tableau de bord</button>
+    <button class="tab-btn" onclick="showTab('users',this)">👥 Utilisateurs</button>
+    <button class="tab-btn" onclick="showTab('distributions',this)">🗺️ Distributions</button>
+    <button class="tab-btn" onclick="showTab('smtp',this)">📧 SMTP</button>
+    <button class="tab-btn" onclick="showTab('templates',this)">✉️ Templates</button>
+    <button class="tab-btn" onclick="showTab('settings',this)">⚙️ Paramètres</button>
   </nav>
 
   <!-- Content -->
@@ -97,10 +178,10 @@
     <!-- ── Dashboard ──────────────────────────────── -->
     <div id="tab-dashboard" class="tab-panel active">
       <div class="stats-grid" id="stats-grid">
-        <div class="stat-card"><div class="stat-card-val" id="s-users">…</div><div class="stat-card-label">Utilisateurs</div></div>
-        <div class="stat-card"><div class="stat-card-val" id="s-creators">…</div><div class="stat-card-label">Créateurs</div></div>
-        <div class="stat-card"><div class="stat-card-val" id="s-dists">…</div><div class="stat-card-label">Distributions</div></div>
-        <div class="stat-card"><div class="stat-card-val" id="s-active">…</div><div class="stat-card-label">Actives</div></div>
+        <div class="stat-card"><div class="stat-card-val" id="s-users">—</div><div class="stat-card-label">Utilisateurs</div></div>
+        <div class="stat-card"><div class="stat-card-val" id="s-creators">—</div><div class="stat-card-label">Créateurs</div></div>
+        <div class="stat-card"><div class="stat-card-val" id="s-dists">—</div><div class="stat-card-label">Distributions</div></div>
+        <div class="stat-card"><div class="stat-card-val" id="s-active">—</div><div class="stat-card-label">Actives</div></div>
       </div>
       <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;">Distributions récentes</h3>
       <div id="recent-dists"></div>
@@ -139,14 +220,18 @@
       <div id="smtp-status-bar"></div>
       <div class="form-card">
         <div class="form-group">
-          <label><input type="checkbox" id="smtp-enabled" style="width:auto;margin-right:6px;"> Activer l'envoi d'emails</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;">
+            <input type="checkbox" id="smtp-enabled" style="width:auto;"> Activer l'envoi d'emails
+          </label>
         </div>
         <div class="form-row">
           <div class="form-group"><label>Serveur SMTP *</label><input type="text" id="smtp-host" placeholder="smtp.gmail.com"></div>
           <div class="form-group"><label>Port</label><input type="number" id="smtp-port" value="587" min="1" max="65535"></div>
         </div>
         <div class="form-group">
-          <label><input type="checkbox" id="smtp-secure" style="width:auto;margin-right:6px;"> Connexion sécurisée SSL/TLS (port 465)</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;">
+            <input type="checkbox" id="smtp-secure" style="width:auto;"> Connexion sécurisée SSL/TLS (port 465)
+          </label>
         </div>
         <div class="form-row">
           <div class="form-group"><label>Identifiant</label><input type="text" id="smtp-user" placeholder="user@gmail.com" autocomplete="off"></div>
@@ -156,12 +241,10 @@
           <div class="form-group"><label>Nom expéditeur</label><input type="text" id="smtp-from-name" placeholder="Distribution Tracker"></div>
           <div class="form-group"><label>Email expéditeur</label><input type="email" id="smtp-from-email" placeholder="noreply@mondomaine.fr"></div>
         </div>
-        <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;">
+        <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;align-items:center;">
           <button class="btn btn-primary" onclick="saveSMTP()">💾 Enregistrer</button>
-          <div style="display:flex;gap:8px;align-items:center;flex:1;">
-            <input type="email" id="smtp-test-to" placeholder="Email de test" style="flex:1;min-width:160px;">
-            <button class="btn btn-ghost btn-sm" onclick="testSMTP()">📨 Tester</button>
-          </div>
+          <input type="email" id="smtp-test-to" placeholder="Email de test" style="flex:1;min-width:160px;">
+          <button class="btn btn-ghost btn-sm" onclick="testSMTP()">📨 Tester</button>
         </div>
         <p id="smtp-msg" style="font-size:13px;margin-top:10px;display:none;"></p>
       </div>
@@ -170,8 +253,114 @@
     <!-- ── Templates ──────────────────────────────── -->
     <div id="tab-templates" class="tab-panel">
       <div class="section-title" style="margin-bottom:16px;">Templates email</div>
-      <p class="text-muted text-sm" style="margin-bottom:20px;">Variables disponibles affichées sous chaque template. Syntaxe : <code style="background:#f0f0f0;padding:2px 5px;border-radius:4px;">{{variable}}</code></p>
+      <p class="text-muted text-sm" style="margin-bottom:20px;">Variables disponibles sous chaque template. Syntaxe : <code style="background:#f0f0f0;padding:2px 6px;border-radius:4px;">{{variable}}</code></p>
       <div id="templates-list"></div>
+    </div>
+
+    <!-- ── Paramètres ──────────────────────────────── -->
+    <div id="tab-settings" class="tab-panel">
+      <div class="section-title" style="margin-bottom:24px;">Paramètres du site</div>
+      <div class="settings-tab-max">
+
+        <!-- Identité -->
+        <div class="form-card" style="margin-bottom:20px;">
+          <div class="settings-section-title">🏷️ Identité</div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Nom du site</label>
+              <input type="text" id="s-site-name" placeholder="Distribution Tracker" maxlength="60">
+            </div>
+            <div class="form-group">
+              <label>Logo (emoji) — aperçu : <span id="s-emoji-preview" style="font-size:18px;">🗺️</span></label>
+              <input type="text" id="s-logo-emoji" placeholder="🗺️" maxlength="4"
+                oninput="document.getElementById('s-emoji-preview').textContent=this.value||'🗺️'">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Slogan <span class="text-muted text-sm">(affiché sur la page de connexion)</span></label>
+            <input type="text" id="s-site-tagline" placeholder="Suivi de distribution de courriers" maxlength="120">
+          </div>
+
+          <div class="form-group">
+            <label>URL du favicon <span class="text-muted text-sm">(icône de l'onglet — laisser vide pour défaut)</span></label>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <input type="url" id="s-favicon-url" placeholder="https://exemple.fr/favicon.ico"
+                style="flex:1;" oninput="previewFavicon(this.value)">
+              <img id="s-favicon-preview" alt="favicon" style="width:28px;height:28px;border-radius:6px;border:1px solid var(--border);display:none;object-fit:contain;">
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Texte de pied de page <span class="text-muted text-sm">(version, copyright…)</span></label>
+            <input type="text" id="s-footer-text" placeholder="Distribution Tracker v2.0.0" maxlength="100">
+          </div>
+        </div>
+
+        <!-- Couleurs -->
+        <div class="form-card" style="margin-bottom:20px;">
+          <div class="settings-section-title">🎨 Couleurs</div>
+
+          <div class="form-group">
+            <label>Couleur principale <span class="text-muted text-sm">(en-têtes, boutons, accents)</span></label>
+            <div class="color-row">
+              <input type="color" class="color-picker" id="s-primary-picker" value="#1565C0"
+                oninput="syncColor('s-primary-picker','s-primary-hex')">
+              <input type="text" class="color-hex" id="s-primary-hex" value="#1565C0" maxlength="7"
+                oninput="syncHex('s-primary-hex','s-primary-picker')"
+                placeholder="#1565C0">
+              <span class="text-sm text-muted" style="flex:1;">En-têtes, boutons principaux</span>
+            </div>
+          </div>
+
+          <div style="margin-bottom:12px;">
+            <label style="font-size:13px;font-weight:600;color:var(--text-light);display:block;margin-bottom:12px;">
+              Dégradé de la page de connexion
+            </label>
+            <div class="form-row">
+              <div class="form-group" style="margin-bottom:0;">
+                <label>Couleur de départ</label>
+                <div class="color-row">
+                  <input type="color" class="color-picker" id="s-grad-from-picker" value="#1565C0"
+                    oninput="syncColor('s-grad-from-picker','s-grad-from-hex');updateGradPreview()">
+                  <input type="text" class="color-hex" id="s-grad-from-hex" value="#1565C0" maxlength="7"
+                    oninput="syncHex('s-grad-from-hex','s-grad-from-picker');updateGradPreview()">
+                </div>
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label>Couleur de fin</label>
+                <div class="color-row">
+                  <input type="color" class="color-picker" id="s-grad-to-picker" value="#0D47A1"
+                    oninput="syncColor('s-grad-to-picker','s-grad-to-hex');updateGradPreview()">
+                  <input type="text" class="color-hex" id="s-grad-to-hex" value="#0D47A1" maxlength="7"
+                    oninput="syncHex('s-grad-to-hex','s-grad-to-picker');updateGradPreview()">
+                </div>
+              </div>
+            </div>
+            <div class="grad-preview" id="grad-preview"
+              style="background:linear-gradient(135deg,#1565C0,#0D47A1);">
+              Aperçu de la page de connexion
+            </div>
+          </div>
+        </div>
+
+        <!-- Page de connexion -->
+        <div class="form-card" style="margin-bottom:24px;">
+          <div class="settings-section-title">🔐 Page de connexion</div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Message d'accueil <span class="text-muted text-sm">(optionnel — affiché au-dessus du formulaire)</span></label>
+            <textarea id="s-login-message" rows="3"
+              placeholder="Message de bienvenue pour vos utilisateurs…"></textarea>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="saveSettings()">💾 Enregistrer les paramètres</button>
+          <p id="settings-msg" style="font-size:13px;display:none;margin:0;"></p>
+        </div>
+
+      </div><!-- /.settings-tab-max -->
     </div>
 
   </div><!-- end tab-content -->
@@ -191,7 +380,7 @@
     <div class="form-group"><label>Mot de passe <span style="color:#607D8B;font-size:12px;">(laisser vide = généré auto)</span></label>
       <input type="text" id="um-password" placeholder="Optionnel — minimum 8 caractères">
     </div>
-    <div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+    <div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;">
       <input type="checkbox" id="um-welcome" checked style="width:auto;"> Envoyer un email de bienvenue (si SMTP configuré)
     </label></div>
     <p id="um-error" style="color:#C62828;font-size:13px;margin-bottom:8px;display:none;"></p>
@@ -249,17 +438,47 @@ function fmtDate(ts, time=false) {
 }
 function statusLabel(s) { return {active:'Actif',paused:'En pause',done:'Terminé',closed:'Clôturée',open:'Active'}[s]||s; }
 
+// ── Branding ──────────────────────────────────────────
+function _hexRgb(h) { return { r:parseInt(h.slice(1,3),16), g:parseInt(h.slice(3,5),16), b:parseInt(h.slice(5,7),16) }; }
+function _darken(h,f){const{r,g,b}=_hexRgb(h);const t=x=>Math.max(0,Math.round(x*(1-f))).toString(16).padStart(2,'0');return'#'+t(r)+t(g)+t(b);}
+function _lighten(h,f){const{r,g,b}=_hexRgb(h);const t=x=>Math.min(255,Math.round(x+(255-x)*f)).toString(16).padStart(2,'0');return'#'+t(r)+t(g)+t(b);}
+
+async function applyBranding() {
+  try {
+    const r = await fetch('/api/settings');
+    if (!r.ok) return;
+    const s = await r.json();
+    const root = document.documentElement;
+    const primary = s.primary_color;
+    if (primary && /^#[0-9a-fA-F]{6}$/.test(primary)) {
+      root.style.setProperty('--primary', primary);
+      root.style.setProperty('--primary-dark', _darken(primary,.15));
+      root.style.setProperty('--primary-light', _lighten(primary,.9));
+      document.getElementById('meta-theme').content = primary;
+    }
+    if (s.favicon_url) document.getElementById('dyn-favicon').href = s.favicon_url;
+    const siteName  = s.site_name  || 'Distribution Tracker';
+    const logoEmoji = s.logo_emoji || '🗺️';
+    document.title = `Administration — ${siteName}`;
+    document.querySelectorAll('[data-site-name]').forEach(el=>el.textContent=siteName);
+    document.querySelectorAll('[data-site-logo]').forEach(el=>el.textContent=logoEmoji);
+    return s;
+  } catch(e) { return null; }
+}
+applyBranding();
+
 // ── Tabs ──────────────────────────────────────────────
-function showTab(name) {
+function showTab(name, btn) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(`tab-${name}`).classList.add('active');
-  event.currentTarget.classList.add('active');
+  (btn || event?.currentTarget)?.classList.add('active');
   if (name === 'dashboard')      loadDashboard();
   else if (name === 'users')     loadUsers();
   else if (name === 'distributions') loadDists();
   else if (name === 'smtp')      loadSMTP();
   else if (name === 'templates') loadTemplates();
+  else if (name === 'settings')  loadSettings();
 }
 
 // ── Dashboard ────────────────────────────────────────
@@ -294,14 +513,14 @@ async function loadUsers() {
       <td><span class="badge badge-${u.active?'active':'closed'}">${u.active?'Actif':'Désactivé'}</span></td>
       <td>${fmtDate(u.last_login,true)}</td>
       <td><div class="table-actions">
-        <button class="btn btn-ghost btn-sm" onclick="editUser('${u.id}')">✏️</button>
-        <button class="btn btn-ghost btn-sm" onclick="resetPwd('${u.id}','${esc(u.name)}')">🔑</button>
-        ${u.id !== ME.id ? `<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}','${esc(u.name)}')">🗑️</button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="editUser('${u.id}')" title="Modifier">✏️</button>
+        <button class="btn btn-ghost btn-sm" onclick="resetPwd('${u.id}','${esc(u.name)}')" title="Réinitialiser MDP">🔑</button>
+        ${u.id !== ME.id ? `<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}','${esc(u.name)}')" title="Supprimer">🗑️</button>` : ''}
       </div></td>
-    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:#999;">Aucun utilisateur</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:#999;padding:24px;">Aucun utilisateur</td></tr>';
 }
 
-function openUserModal(id) {
+function openUserModal() {
   document.getElementById('um-name').value = '';
   document.getElementById('um-email').value = '';
   document.getElementById('um-role').value = 'creator';
@@ -311,6 +530,8 @@ function openUserModal(id) {
   document.getElementById('user-modal-title').textContent = 'Créer un compte';
   document.getElementById('user-modal').style.display = 'flex';
   document.getElementById('um-email').disabled = false;
+  const btn = document.getElementById('um-submit');
+  btn.textContent = 'Créer'; btn.onclick = saveUser;
   setTimeout(() => document.getElementById('um-name').focus(), 50);
 }
 function closeUserModal() { document.getElementById('user-modal').style.display = 'none'; }
@@ -392,9 +613,9 @@ async function loadDists() {
         <button class="btn btn-ghost btn-sm" onclick="window.open('track.html?id=${d.id}','_blank')" title="Suivi live">🗺️</button>
         <button class="btn btn-ghost btn-sm" onclick="window.open('report.html?id=${d.id}','_blank')" title="Rapport">📊</button>
         <button class="btn btn-ghost btn-sm" onclick="openReassign('${d.id}','${esc(d.name)}')" title="Réattribuer">🔄</button>
-        ${d.status==='active'?`<button class="btn btn-warning btn-sm" onclick="closeDist('${d.id}')">🔒</button>`:''}
+        ${d.status==='active'?`<button class="btn btn-warning btn-sm" onclick="closeDist('${d.id}')" title="Clôturer">🔒</button>`:''}
       </div></td>
-    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:#999;">Aucune distribution</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:#999;padding:24px;">Aucune distribution</td></tr>';
 }
 
 async function closeDist(id) {
@@ -431,10 +652,12 @@ async function loadSMTP() {
   document.getElementById('smtp-from-email').value = s.from_email || '';
   const bar = document.getElementById('smtp-status-bar');
   bar.className = 'smtp-status ' + (s.enabled && s.host ? 'smtp-on' : 'smtp-off');
-  bar.textContent = s.enabled && s.host ? `✅ SMTP activé — ${s.host}:${s.port}` : '⚠️ SMTP non configuré ou désactivé';
+  bar.innerHTML = s.enabled && s.host
+    ? `<span>✅</span> SMTP activé — <strong>${s.host}:${s.port}</strong>`
+    : `<span>⚠️</span> SMTP non configuré ou désactivé`;
 }
 async function saveSMTP() {
-  const msg = document.getElementById('smtp-msg');
+  const msg  = document.getElementById('smtp-msg');
   const pass = document.getElementById('smtp-pass').value;
   const body = {
     host: document.getElementById('smtp-host').value, port: document.getElementById('smtp-port').value,
@@ -451,7 +674,7 @@ async function saveSMTP() {
   setTimeout(() => msg.style.display='none', 3000);
 }
 async function testSMTP() {
-  const to = document.getElementById('smtp-test-to').value.trim();
+  const to  = document.getElementById('smtp-test-to').value.trim();
   const msg = document.getElementById('smtp-msg');
   if (!to) { msg.textContent='Entrez une adresse de test'; msg.style.color='#C62828'; msg.style.display=''; return; }
   msg.textContent='Envoi…'; msg.style.color='#607D8B'; msg.style.display='';
@@ -466,10 +689,10 @@ async function loadTemplates() {
   const templates = await apiFetch('/api/admin/templates').then(r => r.json());
   const vars = { 'reset-password': ['name','url','app_name'], 'welcome': ['name','email','password','url','app_name'] };
   document.getElementById('templates-list').innerHTML = templates.map(t => `
-    <div class="form-card" style="margin-bottom:20px;">
+    <div class="form-card" style="max-width:100%;margin-bottom:20px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
         <div>
-          <strong style="font-size:15px;">${t.name}</strong>
+          <strong style="font-size:15px;">${esc(t.name)}</strong>
           <div class="text-sm text-muted">Variables : ${(vars[t.name]||[]).map(v => `<code style="background:#f0f0f0;padding:1px 4px;border-radius:3px;">{{${v}}}</code>`).join(' ')}</div>
         </div>
         <button class="btn btn-primary btn-sm" onclick="saveTpl('${t.name}')">💾 Enregistrer</button>
@@ -483,6 +706,68 @@ async function saveTpl(name) {
   const html    = document.getElementById(`tpl-html-${name}`).value;
   const r = await apiFetch(`/api/admin/templates/${name}`, { method:'PUT', body: JSON.stringify({ subject, html }) });
   if (r.ok) alert(`✅ Template "${name}" enregistré`);
+}
+
+// ── Settings ─────────────────────────────────────────
+async function loadSettings() {
+  const s = await apiFetch('/api/admin/settings').then(r => r.json()).catch(()=>({}));
+  document.getElementById('s-site-name').value      = s.site_name      || '';
+  document.getElementById('s-logo-emoji').value     = s.logo_emoji     || '';
+  document.getElementById('s-emoji-preview').textContent = s.logo_emoji || '🗺️';
+  document.getElementById('s-site-tagline').value   = s.site_tagline   || '';
+  document.getElementById('s-favicon-url').value    = s.favicon_url    || '';
+  document.getElementById('s-footer-text').value    = s.footer_text    || '';
+  document.getElementById('s-login-message').value  = s.login_message  || '';
+  if (s.favicon_url) previewFavicon(s.favicon_url);
+  const pc = s.primary_color || '#1565C0';
+  document.getElementById('s-primary-picker').value = pc;
+  document.getElementById('s-primary-hex').value    = pc;
+  const gf = s.login_gradient_from || '#1565C0';
+  const gt = s.login_gradient_to   || '#0D47A1';
+  document.getElementById('s-grad-from-picker').value = gf;
+  document.getElementById('s-grad-from-hex').value    = gf;
+  document.getElementById('s-grad-to-picker').value   = gt;
+  document.getElementById('s-grad-to-hex').value      = gt;
+  updateGradPreview();
+}
+
+async function saveSettings() {
+  const msg = document.getElementById('settings-msg');
+  const body = {
+    site_name:           document.getElementById('s-site-name').value.trim(),
+    logo_emoji:          document.getElementById('s-logo-emoji').value.trim(),
+    site_tagline:        document.getElementById('s-site-tagline').value.trim(),
+    favicon_url:         document.getElementById('s-favicon-url').value.trim(),
+    footer_text:         document.getElementById('s-footer-text').value.trim(),
+    login_message:       document.getElementById('s-login-message').value.trim(),
+    primary_color:       document.getElementById('s-primary-hex').value.trim() || document.getElementById('s-primary-picker').value,
+    login_gradient_from: document.getElementById('s-grad-from-hex').value.trim() || document.getElementById('s-grad-from-picker').value,
+    login_gradient_to:   document.getElementById('s-grad-to-hex').value.trim() || document.getElementById('s-grad-to-picker').value,
+  };
+  const r = await apiFetch('/api/admin/settings', { method:'PUT', body: JSON.stringify(body) });
+  msg.style.color = r.ok ? 'green' : '#C62828';
+  msg.textContent = r.ok ? '✅ Paramètres enregistrés' : '❌ Erreur lors de la sauvegarde';
+  msg.style.display = '';
+  if (r.ok) applyBranding();
+  setTimeout(() => msg.style.display='none', 4000);
+}
+
+function syncColor(pickerId, hexId) {
+  document.getElementById(hexId).value = document.getElementById(pickerId).value;
+}
+function syncHex(hexId, pickerId) {
+  const v = document.getElementById(hexId).value;
+  if (/^#[0-9a-fA-F]{6}$/.test(v)) document.getElementById(pickerId).value = v;
+}
+function previewFavicon(url) {
+  const img = document.getElementById('s-favicon-preview');
+  if (url) { img.src = url; img.style.display = ''; }
+  else      { img.style.display = 'none'; }
+}
+function updateGradPreview() {
+  const from = document.getElementById('s-grad-from-picker').value;
+  const to   = document.getElementById('s-grad-to-picker').value;
+  document.getElementById('grad-preview').style.background = `linear-gradient(135deg, ${from}, ${to})`;
 }
 
 // ── Confirm modal ────────────────────────────────────

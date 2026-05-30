@@ -1,4 +1,4 @@
-# Guide de contribution — Distribution Tracker v2.0.0
+# Guide de contribution — Distribution Tracker v2.1.0
 
 ---
 
@@ -35,7 +35,7 @@ web-distributions/
     ├── forgot-password.html
     ├── reset-password.html
     ├── change-password.html
-    ├── admin.html         # Super-admin : users, distributions, SMTP, templates
+    ├── admin.html         # Super-admin : users, distributions, SMTP, templates, paramètres
     ├── creator.html       # Créateur : distributions, délégation, co-gérants
     ├── track.html         # Carte suivi temps réel (auth JWT requis)
     ├── report.html        # Rapports + export PDF (auth JWT requis)
@@ -178,11 +178,12 @@ Issue avec le label `enhancement` :
 
 À chaque release, mettre à jour :
 - [ ] `package.json` → `"version"`
-- [ ] `CHANGELOG.md` → nouvelle entrée
+- [ ] `package-lock.json` → `"version"` (×2)
+- [ ] `CHANGELOG.md` → nouvelle entrée + liens de comparaison
 - [ ] `README.md` → badge version
 - [ ] `docs/API.md` → titre
 - [ ] `docs/DEPLOYMENT.md` → titre
 - [ ] `docs/CONTRIBUTING.md` → titre
-- [ ] `server.js` → commentaire en tête de fichier
+- [ ] `server.js` → commentaire en tête + `console.log`
 - [ ] `database.js` → commentaire en tête de fichier
 - [ ] Tag Git : `git tag v2.x.x && git push origin v2.x.x`

@@ -1,4 +1,4 @@
-// Distribution Tracker v2.0.0 — https://github.com/wdebonne/web-distributions
+// Distribution Tracker v2.1.0 — https://github.com/wdebonne/web-distributions
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -75,6 +75,33 @@ async function sendEmail(to, tplName, vars) {
     return true;
   } catch(e) { console.error('Email error:', e.message); return false; }
 }
+
+// ══════════════════════════════════════════════════════
+// SETTINGS (public + admin)
+// ══════════════════════════════════════════════════════
+const PUBLIC_SETTING_KEYS = [
+  'site_name', 'site_tagline', 'logo_emoji', 'favicon_url',
+  'primary_color', 'login_gradient_from', 'login_gradient_to',
+  'footer_text', 'login_message',
+];
+
+app.get('/api/settings', (req, res) => {
+  const s = db.getSettings();
+  const pub = {};
+  PUBLIC_SETTING_KEYS.forEach(k => { pub[k] = s[k] ?? ''; });
+  res.json(pub);
+});
+
+app.get('/api/admin/settings', auth(['admin']), (req, res) => {
+  res.json(db.getSettings());
+});
+
+app.put('/api/admin/settings', auth(['admin']), (req, res) => {
+  const updates = {};
+  PUBLIC_SETTING_KEYS.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+  db.saveSettings(updates);
+  res.json({ success: true });
+});
 
 // ══════════════════════════════════════════════════════
 // AUTH
@@ -356,5 +383,5 @@ io.on('connection', socket => {
 });
 
 db.init().then(() => {
-  server.listen(PORT, () => console.log(`Distribution Tracker v2.0.0 → http://localhost:${PORT}`));
+  server.listen(PORT, () => console.log(`Distribution Tracker v2.1.0 → http://localhost:${PORT}`));
 }).catch(e => { console.error('DB init:', e); process.exit(1); });
