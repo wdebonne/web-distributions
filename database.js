@@ -113,24 +113,25 @@ async function ensureDefaultAdmin() {
   const existing = get('SELECT id FROM app_users WHERE LOWER(email)=LOWER(?)', [email]);
 
   if (existing) {
-    // Met à jour le mot de passe et s'assure que le compte est actif avec le rôle admin
+    // Email trouvé — synchroniser uniquement le mot de passe
     db.run('UPDATE app_users SET password_hash=?,role=?,active=1 WHERE id=?', [hash, 'admin', existing.id]);
     db.run('UPDATE distributions SET creator_id=? WHERE creator_id IS NULL', [existing.id]);
-    console.log(`Admin synchronisé : ${email}`);
+    console.log(`✅ Admin synchronisé : ${email}`);
   } else {
-    // Aucun compte avec cet email — en créer un si aucun admin n'existe
-    const anyAdmin = get('SELECT COUNT(*) as n FROM app_users WHERE role=?', ['admin']);
-    if (!anyAdmin || anyAdmin.n === 0) {
+    // Aucun compte avec cet email — chercher un admin existant à mettre à jour
+    const anyAdmin = get('SELECT id,email FROM app_users WHERE role=? LIMIT 1', ['admin']);
+    if (anyAdmin) {
+      // Portainer est la source de vérité : mise à jour email + mot de passe
+      db.run('UPDATE app_users SET email=?,password_hash=?,active=1 WHERE id=?', [email, hash, anyAdmin.id]);
+      db.run('UPDATE distributions SET creator_id=? WHERE creator_id IS NULL', [anyAdmin.id]);
+      console.log(`✅ Admin mis à jour : ${anyAdmin.email} → ${email}`);
+    } else {
+      // Aucun admin du tout — créer le premier compte
       const id = 'admin-' + Date.now();
       db.run('INSERT INTO app_users (id,email,name,password_hash,role,active,created_at) VALUES (?,?,?,?,?,1,?)',
         [id, email, 'Administrateur', hash, 'admin', Date.now()]);
       db.run('UPDATE distributions SET creator_id=? WHERE creator_id IS NULL', [id]);
-      console.log(`Admin créé : ${email} / ${pwd}`);
-    } else {
-      // Un admin existe mais avec un email différent — ne pas écraser
-      console.log(`⚠️  ADMIN_EMAIL (${email}) ne correspond à aucun compte existant.`);
-      console.log(`    Les variables ADMIN_EMAIL/ADMIN_PASSWORD n'ont pas été appliquées.`);
-      console.log(`    Connectez-vous avec vos identifiants actuels ou corrigez ADMIN_EMAIL.`);
+      console.log(`✅ Admin créé : ${email}`);
     }
   }
 }
