@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1565C0">
+  <title>Mes distributions — Distribution Tracker</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { overflow:hidden; }
+    .app-layout { display:flex;flex-direction:column;height:100vh; }
+    .app-header { background:var(--primary);color:#fff;height:52px;padding:0 16px;
+      display:flex;align-items:center;justify-content:space-between;flex-shrink:0; }
+    .app-header-title { font-weight:700;font-size:16px; }
+    .app-header-right { display:flex;align-items:center;gap:8px;font-size:13px; }
+
+    .tab-nav { display:flex;background:#fff;border-bottom:2px solid var(--border);flex-shrink:0;overflow-x:auto; }
+    .tab-btn { padding:12px 20px;border:none;background:none;font-size:14px;font-weight:600;
+      color:var(--text-light);cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent;margin-bottom:-2px; }
+    .tab-btn:hover { color:var(--text); }
+    .tab-btn.active { color:var(--primary);border-bottom-color:var(--primary); }
+
+    .tab-content { flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch; }
+    .tab-panel { display:none; }
+    .tab-panel.active { display:block; }
+
+    /* Distribution cards */
+    .dist-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px; }
+    .dist-card { background:var(--card);border-radius:12px;box-shadow:var(--shadow);overflow:hidden;
+      border:1.5px solid transparent;transition:border-color .15s,box-shadow .15s; }
+    .dist-card:hover { border-color:var(--primary);box-shadow:var(--shadow-lg); }
+    .dist-card-header { padding:16px 16px 10px;border-bottom:1px solid var(--border); }
+    .dist-card-title  { font-weight:700;font-size:16px;margin-bottom:4px;word-break:break-word; }
+    .dist-card-meta   { display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--text-light); }
+    .dist-card-body   { padding:12px 16px; }
+    .dist-card-actions { padding:10px 12px;background:var(--bg);display:flex;gap:6px;flex-wrap:wrap; }
+
+    /* Délégué badge */
+    .delegate-badge { background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;
+      border-radius:6px;padding:4px 8px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:4px; }
+    .manager-badge  { background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;
+      border-radius:6px;padding:4px 8px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:4px; }
+
+    /* Create form */
+    .create-card { background:var(--card);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);max-width:540px; }
+
+    /* Modal */
+    .modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px; }
+    .modal-box { background:#fff;border-radius:12px;padding:28px;width:100%;max-width:500px;box-shadow:0 8px 40px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto; }
+    .modal-title   { font-size:17px;font-weight:700;margin-bottom:16px; }
+    .modal-actions { display:flex;gap:8px;justify-content:flex-end;margin-top:20px; }
+
+    /* QR modal */
+    #qr-img { max-width:220px;display:block;margin:12px auto;border-radius:8px;border:2px solid var(--border); }
+
+    /* People list in modals */
+    .people-list { max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px; }
+    .people-item { display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border); }
+    .people-item:last-child { border-bottom:none; }
+    .people-item-name { flex:1;font-size:14px; }
+    .people-role { font-size:11px;color:var(--text-light);background:var(--bg);padding:2px 6px;border-radius:4px; }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+
+  <header class="app-header">
+    <div class="app-header-title">🗺️ Distribution Tracker</div>
+    <div class="app-header-right">
+      <span id="header-name" style="opacity:.8;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+      <button class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;" onclick="logout()">Déconnexion</button>
+    </div>
+  </header>
+
+  <nav class="tab-nav">
+    <button class="tab-btn active" onclick="showTab('my')">🗺️ Mes distributions</button>
+    <button class="tab-btn" onclick="showTab('shared')">🤝 Partagées avec moi</button>
+    <button class="tab-btn" onclick="showTab('new')">+ Créer</button>
+  </nav>
+
+  <div class="tab-content">
+
+    <!-- ── Mes distributions ──────────────────────── -->
+    <div id="tab-my" class="tab-panel active">
+      <div id="my-dists-grid" class="dist-grid">
+        <p class="text-muted text-sm">Chargement…</p>
+      </div>
+    </div>
+
+    <!-- ── Partagées avec moi ─────────────────────── -->
+    <div id="tab-shared" class="tab-panel">
+      <p class="text-muted text-sm" style="margin-bottom:12px;">Distributions que d'autres créateurs vous ont confiées (délégation ou co-gestion).</p>
+      <div id="shared-dists-grid" class="dist-grid">
+        <p class="text-muted text-sm">Chargement…</p>
+      </div>
+    </div>
+
+    <!-- ── Créer une distribution ─────────────────── -->
+    <div id="tab-new" class="tab-panel">
+      <div class="create-card">
+        <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;">Nouvelle distribution</h2>
+        <form id="create-form">
+          <div class="form-group">
+            <label>Nom de la distribution *</label>
+            <input type="text" id="dist-name" placeholder="ex : Journal du Lundi" required>
+          </div>
+          <div class="form-group">
+            <label>Description (optionnel)</label>
+            <textarea id="dist-desc" placeholder="Secteur, notes…"></textarea>
+          </div>
+          <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px;">
+            <button type="submit" class="btn btn-primary" id="create-btn">Créer la distribution</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Modale QR code ─────────────────────────────── -->
+<div id="qr-modal" class="modal-overlay" style="display:none;" onclick="closeModal('qr-modal')">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-title">QR Code — Lien de distribution</div>
+    <img id="qr-img" src="" alt="QR Code">
+    <p id="qr-url" style="font-size:12px;color:#607D8B;text-align:center;word-break:break-all;margin-bottom:16px;"></p>
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-sm" onclick="copyUrl()">📋 Copier le lien</button>
+      <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨️ Imprimer</button>
+      <button class="btn btn-primary btn-sm" onclick="closeModal('qr-modal')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modale gestion partage ──────────────────────── -->
+<div id="share-modal" class="modal-overlay" style="display:none;" onclick="closeModal('share-modal')">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-title" id="share-modal-title">Partager la distribution</div>
+    <p class="text-muted text-sm" style="margin-bottom:14px;">
+      <strong>Délégué</strong> = gestion complète (comme vous).<br>
+      <strong>Co-gérant</strong> = accès suivi et rapport.
+    </p>
+
+    <!-- Délégation -->
+    <div style="margin-bottom:16px;">
+      <div style="font-weight:700;font-size:14px;margin-bottom:8px;">🤝 Délégué actuel</div>
+      <div id="delegate-current" style="margin-bottom:8px;"></div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="delegate-select" style="flex:1;font-size:14px;"></select>
+        <button class="btn btn-primary btn-sm" onclick="setDelegate()">Déléguer</button>
+        <button class="btn btn-ghost btn-sm" onclick="removeDelegate()">Retirer</button>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Co-gérants -->
+    <div>
+      <div style="font-weight:700;font-size:14px;margin-bottom:8px;">👥 Co-gérants</div>
+      <div class="people-list" id="managers-list" style="margin-bottom:10px;"></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+        <select id="manager-add-select" style="flex:1;font-size:14px;"></select>
+        <button class="btn btn-primary btn-sm" onclick="addManager()">Ajouter</button>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="closeModal('share-modal')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modale confirmation ────────────────────────── -->
+<div id="confirm-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-box" style="max-width:380px;">
+    <div class="modal-title" id="cm-title">Confirmation</div>
+    <p id="cm-msg" class="text-muted" style="margin-bottom:4px;"></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('confirm-modal')">Annuler</button>
+      <button class="btn btn-danger" id="cm-ok">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<script src="colors.js"></script>
+<script>
+// ── Auth ──────────────────────────────────────────────
+const TOKEN = localStorage.getItem('authToken');
+const ME    = JSON.parse(localStorage.getItem('authUser') || '{}');
+if (!TOKEN) location.replace('login.html');
+document.getElementById('header-name').textContent = ME.name || '';
+
+function apiFetch(url, opts = {}) {
+  return fetch(url, { ...opts, headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+TOKEN, ...(opts.headers||{}) } });
+}
+function logout() { localStorage.removeItem('authToken'); localStorage.removeItem('authUser'); location.replace('login.html'); }
+function esc(s)    { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtDate(ts) { if(!ts) return '—'; return new Date(ts).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+function closeModal(id) { document.getElementById(id).style.display='none'; }
+document.addEventListener('keydown', e => { if(e.key==='Escape') document.querySelectorAll('.modal-overlay').forEach(m=>m.style.display='none'); });
+
+// ── Tabs ──────────────────────────────────────────────
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById(`tab-${name}`).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (name === 'my')     loadMyDists();
+  else if (name === 'shared') loadSharedDists();
+  else if (name === 'new') setTimeout(()=>document.getElementById('dist-name').focus(),50);
+}
+
+// ── Distribution card builder ─────────────────────────
+let allUsers = [];
+async function ensureUsers() {
+  if (!allUsers.length) allUsers = await apiFetch('/api/admin/users').then(r => r.ok ? r.json() : []).catch(()=>[]);
+}
+
+function buildCard(d, sharedInfo) {
+  const isOwner = d.creator_id === ME.id;
+  const managers = d.managers || [];
+  const delegate = managers.find(m => m.type === 'delegate');
+  const coManagers = managers.filter(m => m.type !== 'delegate');
+  return `
+<div class="dist-card">
+  <div class="dist-card-header">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+      <div class="dist-card-title">${esc(d.name)}</div>
+      <span class="badge badge-${d.status==='active'?'open':'closed'}" style="flex-shrink:0;">${d.status==='active'?'Active':'Clôturée'}</span>
+    </div>
+    ${d.description ? `<div class="text-sm text-muted" style="margin-top:3px;">${esc(d.description)}</div>` : ''}
+    <div class="dist-card-meta" style="margin-top:8px;">
+      <span>📅 ${fmtDate(d.created_at)}</span>
+      <span>👥 ${d.user_count||0} participant${(d.user_count||0)>1?'s':''}</span>
+      ${sharedInfo ? `<span class="${sharedInfo.type==='delegate'?'delegate-badge':'manager-badge'}">${sharedInfo.type==='delegate'?'🤝 Délégué':'👁️ Co-gérant'}</span>` : ''}
+    </div>
+    ${delegate && isOwner ? `<div style="margin-top:6px;"><span class="delegate-badge">🤝 Délégué à ${esc(delegate.name)}</span></div>` : ''}
+    ${coManagers.length && isOwner ? `<div style="margin-top:4px;font-size:12px;color:var(--text-light);">Co-gérants : ${coManagers.map(m=>esc(m.name)).join(', ')}</div>` : ''}
+  </div>
+  <div class="dist-card-actions">
+    <button class="btn btn-primary btn-sm" onclick="showQR('${d.id}')">🔲 QR Code</button>
+    <button class="btn btn-ghost btn-sm"   onclick="window.open('track.html?id=${d.id}','_blank')">🗺️ Live</button>
+    <button class="btn btn-ghost btn-sm"   onclick="window.open('report.html?id=${d.id}','_blank')">📊 Rapport</button>
+    ${isOwner ? `<button class="btn btn-ghost btn-sm" onclick="openShare('${d.id}','${esc(d.name)}')">🤝 Partager</button>` : ''}
+    ${d.status==='active' && isOwner ? `<button class="btn btn-warning btn-sm" onclick="closeDist('${d.id}','${esc(d.name)}')">🔒 Clôturer</button>` : ''}
+    ${isOwner ? `<button class="btn btn-danger btn-sm" onclick="deleteDist('${d.id}','${esc(d.name)}')">🗑️</button>` : ''}
+  </div>
+</div>`;
+}
+
+// ── Load my distributions ─────────────────────────────
+async function loadMyDists() {
+  const [dists] = await Promise.all([
+    apiFetch('/api/distributions').then(r => r.json()),
+    ensureUsers()
+  ]);
+  const mine = dists.filter(d => d.creator_id === ME.id);
+  // Load managers for each
+  await Promise.all(mine.map(async d => {
+    const r = await apiFetch(`/api/distributions/${d.id}/managers`);
+    d.managers = r.ok ? await r.json() : [];
+  }));
+  const el = document.getElementById('my-dists-grid');
+  if (!mine.length) {
+    el.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px 20px;">
+      <div style="font-size:48px;margin-bottom:12px;">📭</div>
+      <p class="text-muted">Vous n'avez aucune distribution.<br>Cliquez sur <strong>+ Créer</strong> pour commencer !</p>
+    </div>`;
+    return;
+  }
+  el.innerHTML = mine.map(d => buildCard(d)).join('');
+}
+
+// ── Load shared distributions ─────────────────────────
+async function loadSharedDists() {
+  const dists = await apiFetch('/api/distributions').then(r => r.json());
+  const shared = dists.filter(d => d.creator_id !== ME.id);
+  await Promise.all(shared.map(async d => {
+    const r = await apiFetch(`/api/distributions/${d.id}/managers`);
+    d.managers = r.ok ? await r.json() : [];
+  }));
+  const el = document.getElementById('shared-dists-grid');
+  if (!shared.length) {
+    el.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px 20px;">
+      <div style="font-size:48px;margin-bottom:12px;">🤝</div>
+      <p class="text-muted">Aucune distribution partagée avec vous pour le moment.</p>
+    </div>`;
+    return;
+  }
+  el.innerHTML = shared.map(d => {
+    const myRole = d.managers.find(m => m.user_id === ME.id);
+    return buildCard(d, myRole);
+  }).join('');
+}
+
+// ── Create distribution ───────────────────────────────
+document.getElementById('create-form').onsubmit = async e => {
+  e.preventDefault();
+  const btn = document.getElementById('create-btn');
+  btn.disabled = true; btn.textContent = 'Création…';
+  const r = await apiFetch('/api/distributions', {
+    method:'POST', body: JSON.stringify({ name: document.getElementById('dist-name').value, description: document.getElementById('dist-desc').value })
+  });
+  btn.disabled = false; btn.textContent = 'Créer la distribution';
+  if (!r.ok) { alert('Erreur lors de la création'); return; }
+  const d = await r.json();
+  document.getElementById('dist-name').value = '';
+  document.getElementById('dist-desc').value = '';
+  // Switch to my distributions and show QR
+  document.querySelector('.tab-btn').click();
+  await loadMyDists();
+  showQR(d.id);
+};
+
+// ── QR Code ───────────────────────────────────────────
+let currentUrl = '';
+async function showQR(id) {
+  const r = await apiFetch(`/api/distributions/${id}/qr`);
+  if (!r.ok) return;
+  const { qr, url } = await r.json();
+  currentUrl = url;
+  document.getElementById('qr-img').src = qr;
+  document.getElementById('qr-url').textContent = url;
+  document.getElementById('qr-modal').style.display = 'flex';
+}
+function copyUrl() {
+  navigator.clipboard.writeText(currentUrl).then(() => {
+    const el = event.target; el.textContent = '✓ Copié !';
+    setTimeout(() => el.textContent = '📋 Copier le lien', 2000);
+  });
+}
+
+// ── Close / Delete ────────────────────────────────────
+function closeDist(id, name) {
+  showConfirm(`Clôturer "${name}" ?`, 'Les utilisateurs ne pourront plus envoyer de positions.', async () => {
+    await apiFetch(`/api/distributions/${id}/close`, { method:'POST' }); closeModal('confirm-modal'); loadMyDists();
+  });
+}
+function deleteDist(id, name) {
+  showConfirm(`Supprimer "${name}" ?`, 'Toutes les données seront définitivement supprimées.', async () => {
+    await apiFetch(`/api/distributions/${id}`, { method:'DELETE' }); closeModal('confirm-modal'); loadMyDists();
+  });
+}
+
+// ── Partage / Délégation ──────────────────────────────
+let shareDistId = null;
+async function openShare(id, name) {
+  shareDistId = id;
+  document.getElementById('share-modal-title').textContent = `Partager — ${name}`;
+  document.getElementById('share-modal').style.display = 'flex';
+  await ensureUsers();
+  await refreshShareModal();
+}
+
+async function refreshShareModal() {
+  const r = await apiFetch(`/api/distributions/${shareDistId}/managers`);
+  const managers = r.ok ? await r.json() : [];
+  const others = allUsers.filter(u => u.id !== ME.id && u.active);
+
+  // Délégué
+  const delegate = managers.find(m => m.type === 'delegate');
+  document.getElementById('delegate-current').innerHTML = delegate
+    ? `<div class="delegate-badge" style="display:inline-flex;">🤝 ${esc(delegate.name)}</div>`
+    : '<span class="text-muted text-sm">Aucun délégué</span>';
+
+  const delSelect = document.getElementById('delegate-select');
+  delSelect.innerHTML = others.map(u => `<option value="${u.id}" ${delegate?.user_id===u.id?'selected':''}>${esc(u.name)} (${u.role})</option>`).join('');
+
+  // Co-gérants
+  const coManagers = managers.filter(m => m.type === 'manager');
+  document.getElementById('managers-list').innerHTML = coManagers.length
+    ? coManagers.map(m => `
+        <div class="people-item">
+          <div class="people-item-name">${esc(m.name)}</div>
+          <span class="people-role">${m.role}</span>
+          <button class="btn btn-danger btn-sm" style="padding:4px 8px;min-height:32px;" onclick="removeManager('${m.user_id}')">✕</button>
+        </div>`).join('')
+    : '<div style="padding:12px;color:#999;font-size:13px;text-align:center;">Aucun co-gérant</div>';
+
+  const alreadyIds = new Set([...coManagers.map(m=>m.user_id), ...(delegate?[delegate.user_id]:[])]);
+  const addSel = document.getElementById('manager-add-select');
+  addSel.innerHTML = others.filter(u => !alreadyIds.has(u.id)).map(u => `<option value="${u.id}">${esc(u.name)} (${u.role})</option>`).join('');
+}
+
+async function setDelegate() {
+  const userId = document.getElementById('delegate-select').value;
+  if (!userId) return;
+  await apiFetch(`/api/distributions/${shareDistId}/managers`, { method:'POST', body: JSON.stringify({ userId, type:'delegate' }) });
+  await refreshShareModal(); loadMyDists();
+}
+async function removeDelegate() {
+  await apiFetch(`/api/distributions/${shareDistId}/managers`, { method:'POST', body: JSON.stringify({ userId: document.getElementById('delegate-select').value, type:'_remove_delegate_' }) });
+  // Delete all delegates
+  const r = await apiFetch(`/api/distributions/${shareDistId}/managers`);
+  const managers = r.ok ? await r.json() : [];
+  for (const m of managers.filter(x=>x.type==='delegate')) {
+    await apiFetch(`/api/distributions/${shareDistId}/managers/${m.user_id}`, { method:'DELETE' });
+  }
+  await refreshShareModal(); loadMyDists();
+}
+async function addManager() {
+  const userId = document.getElementById('manager-add-select').value;
+  if (!userId) return;
+  await apiFetch(`/api/distributions/${shareDistId}/managers`, { method:'POST', body: JSON.stringify({ userId, type:'manager' }) });
+  await refreshShareModal();
+}
+async function removeManager(userId) {
+  await apiFetch(`/api/distributions/${shareDistId}/managers/${userId}`, { method:'DELETE' });
+  await refreshShareModal();
+}
+
+// ── Confirm modal ─────────────────────────────────────
+function showConfirm(title, msg, cb) {
+  document.getElementById('cm-title').textContent = title;
+  document.getElementById('cm-msg').textContent   = msg;
+  document.getElementById('cm-ok').onclick = cb;
+  document.getElementById('confirm-modal').style.display = 'flex';
+}
+
+// ── Init ──────────────────────────────────────────────
+loadMyDists();
+</script>
+</body>
+</html>

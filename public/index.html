@@ -4,7 +4,23 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Distribution Tracker</title>
-  <script>window.location.replace('admin.html');</script>
+  <script>
+    // Redirect to login or to the right dashboard if already connected
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      try {
+        const p = JSON.parse(atob(token.split('.')[1]));
+        if (p.exp > Date.now() / 1000) {
+          location.replace(p.role === 'admin' ? 'admin.html' : 'creator.html');
+        } else {
+          localStorage.removeItem('authToken');
+          location.replace('login.html');
+        }
+      } catch { location.replace('login.html'); }
+    } else {
+      location.replace('login.html');
+    }
+  </script>
 </head>
 <body></body>
 </html>

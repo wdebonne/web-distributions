@@ -6,17 +6,24 @@ services:
     container_name: distribution-tracker
     restart: unless-stopped
     ports:
-      # Le port hôte ET le port container suivent la variable PORT
-      # Portainer : définir PORT=3078 (ou autre) dans les variables d'environnement
       - "${PORT:-3000}:${PORT:-3000}"
     volumes:
-      - distribution-data:/data
+      # ── PERSISTANCE GARANTIE ─────────────────────────────────────────────────
+      # Bind mount direct sur le disque hôte → les données survivent à tout
+      # redéploiement, rebuild d'image ou mise à jour via Portainer.
+      #
+      # Créer le répertoire UNE FOIS avant le premier démarrage :
+      #   mkdir -p /opt/web-distributions/data
+      # ─────────────────────────────────────────────────────────────────────────
+      - /opt/web-distributions/data:/data
     environment:
       - PORT=${PORT:-3000}
+      # Mot de passe du PREMIER compte admin (créé au 1er démarrage)
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@localhost}
+      # URL publique pour les QR codes (ex: https://distrib.mondomaine.fr)
       - BASE_URL=${BASE_URL:-}
-      - DATA_DIR=${DATA_DIR:-/data}
-
-volumes:
-  distribution-data:
-    driver: local
+      # Clé secrète JWT — CHANGER en production !
+      - JWT_SECRET=${JWT_SECRET:-changeme-set-a-random-secret}
+      - DATA_DIR=/data
+      - NODE_ENV=production

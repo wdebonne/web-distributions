@@ -118,9 +118,16 @@
 <script src="/socket.io/socket.io.js"></script>
 <script src="colors.js"></script>
 <script>
-const params   = new URLSearchParams(location.search);
-const DIST_ID  = params.get('id');
-const ADMIN_PWD = params.get('pwd');
+const TOKEN   = localStorage.getItem('authToken');
+const ME      = JSON.parse(localStorage.getItem('authUser') || '{}');
+if (!TOKEN)   location.replace('login.html');
+
+const params  = new URLSearchParams(location.search);
+const DIST_ID = params.get('id');
+
+function apiFetch(url, opts={}) {
+  return fetch(url, { ...opts, headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+TOKEN, ...(opts.headers||{}) }});
+}
 
 if (!DIST_ID) { document.body.innerHTML = '<p style="padding:24px;color:red;">ID de distribution manquant.</p>'; }
 
@@ -231,7 +238,7 @@ function focusUser(userId) {
 
 // ── Chargement initial ────────────────────────────────
 async function loadInitial() {
-  const r = await fetch(`/api/distributions/${DIST_ID}`);
+  const r = await apiFetch(`/api/distributions/${DIST_ID}`);
   if (!r.ok) { alert('Distribution introuvable'); return; }
   const d = await r.json();
 
@@ -242,7 +249,7 @@ async function loadInitial() {
 
   d.users.forEach(u => { userData[u.id] = { ...u, joinedAt: u.joined_at }; });
 
-  const rr = await fetch(`/api/distributions/${DIST_ID}/routes`);
+  const rr = await apiFetch(`/api/distributions/${DIST_ID}/routes`);
   if (rr.ok) {
     const routes = await rr.json();
     routes.forEach(r => {
@@ -285,9 +292,7 @@ setInterval(renderUserList, 15000);
 // ── Clôturer ─────────────────────────────────────────
 async function closeDistribution() {
   if (!confirm('Clôturer cette distribution ? Les utilisateurs ne pourront plus envoyer de positions.')) return;
-  const r = await fetch(`/api/distributions/${DIST_ID}/close`, {
-    method: 'POST', headers: { 'x-admin-pwd': ADMIN_PWD }
-  });
+  const r = await apiFetch(`/api/distributions/${DIST_ID}/close`, { method: 'POST' });
   if (r.ok) {
     document.getElementById('dist-status-header').textContent = '✓ Clôturée';
     document.getElementById('close-btn').style.display = 'none';

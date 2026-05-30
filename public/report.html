@@ -131,9 +131,15 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="colors.js"></script>
 <script>
-const params    = new URLSearchParams(location.search);
-const DIST_ID   = params.get('id');
-const ADMIN_PWD = params.get('pwd');
+const TOKEN   = localStorage.getItem('authToken');
+if (!TOKEN) location.replace('login.html');
+
+const params  = new URLSearchParams(location.search);
+const DIST_ID = params.get('id');
+
+function apiFetch(url, opts={}) {
+  return fetch(url, { ...opts, headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+TOKEN, ...(opts.headers||{}) }});
+}
 let reportData  = null;
 
 // ── Carte ────────────────────────────────────────────
@@ -302,7 +308,7 @@ function hexToRgb(hex) {
 
 // ── Chargement ────────────────────────────────────────
 async function loadReport() {
-  const r = await fetch(`/api/distributions/${DIST_ID}/report`, { headers: { 'x-admin-pwd': ADMIN_PWD } });
+  const r = await apiFetch(`/api/distributions/${DIST_ID}/report`);
   if (!r.ok) { alert('Impossible de charger le rapport'); return; }
   reportData = await r.json();
   const d = reportData.distribution;

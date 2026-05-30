@@ -4,405 +4,499 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#1565C0">
-  <title>Admin – Distribution Tracker</title>
+  <title>Administration — Distribution Tracker</title>
   <link rel="stylesheet" href="style.css">
   <style>
-    /* Mobile back button (visible uniquement sur mobile) */
-    #mobile-back {
-      display: none; align-items: center; gap: 6px;
-      background: none; border: none; color: #fff; font-size: 15px;
-      font-weight: 600; cursor: pointer; padding: 4px 8px 4px 0; min-height: 44px;
-    }
-    @media (max-width: 767px) {
-      #mobile-back { display: flex; }
-      #header-title { font-size: 15px; }
-    }
-    /* Barre flottante "Créer" en mobile quand la liste est affichée */
-    #mobile-fab {
-      display: none; position: absolute; bottom: 20px; right: 20px;
-      z-index: 20; border-radius: 28px; padding: 14px 20px; gap: 8px;
-      box-shadow: 0 4px 20px rgba(21,101,192,.4); font-size: 15px;
-    }
-    @media (max-width: 767px) { #mobile-fab { display: flex; } }
+    body { overflow:hidden; }
+    .app-layout { display:flex;flex-direction:column;height:100vh; }
 
-    .login-center { background: linear-gradient(135deg,#1565C0,#0D47A1); }
+    /* Header */
+    .app-header { background:var(--primary);color:#fff;height:52px;padding:0 20px;
+      display:flex;align-items:center;justify-content:space-between;flex-shrink:0; }
+    .app-header-title { font-weight:700;font-size:16px; }
+    .app-header-user  { display:flex;align-items:center;gap:10px;font-size:13px;opacity:.9; }
+
+    /* Tab nav */
+    .tab-nav { display:flex;background:#fff;border-bottom:2px solid var(--border);flex-shrink:0;overflow-x:auto; }
+    .tab-btn { padding:12px 20px;border:none;background:none;font-size:14px;font-weight:600;
+      color:var(--text-light);cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent;
+      margin-bottom:-2px;transition:color .15s,border-color .15s; }
+    .tab-btn:hover  { color:var(--text); }
+    .tab-btn.active { color:var(--primary);border-bottom-color:var(--primary); }
+
+    /* Content */
+    .tab-content { flex:1;overflow-y:auto;padding:24px;-webkit-overflow-scrolling:touch; }
+    .tab-panel { display:none; }
+    .tab-panel.active { display:block; }
+
+    /* Section header */
+    .section-header { display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px; }
+    .section-title  { font-size:18px;font-weight:700; }
+
+    /* Data tables */
+    .data-table { width:100%;border-collapse:collapse;font-size:14px; }
+    .data-table th { background:var(--bg);padding:10px 12px;text-align:left;font-size:11px;font-weight:700;
+      color:var(--text-light);text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid var(--border); }
+    .data-table td { padding:12px;border-bottom:1px solid var(--border);vertical-align:middle; }
+    .data-table tr:hover td { background:var(--bg); }
+    .table-actions { display:flex;gap:6px;flex-wrap:wrap; }
+    .role-badge { padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700; }
+    .role-admin   { background:#E8EAF6;color:#1A237E; }
+    .role-creator { background:#E8F5E9;color:#1B5E20; }
+
+    /* Forms in panels */
+    .form-card { background:var(--card);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);max-width:560px; }
+    .form-row  { display:grid;grid-template-columns:1fr 1fr;gap:16px; }
+    @media (max-width:600px) { .form-row { grid-template-columns:1fr; } }
+
+    /* SMTP status */
+    .smtp-status { display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;margin-bottom:16px;font-size:14px; }
+    .smtp-on  { background:#E8F5E9;color:#1B5E20; }
+    .smtp-off { background:#FFF8E1;color:#E65100; }
+
+    /* Template editor */
+    .template-editor textarea { font-family:monospace;font-size:13px;min-height:260px;resize:vertical; }
+
+    /* Stats cards */
+    .stats-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-bottom:24px; }
+    .stat-card  { background:var(--card);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);text-align:center; }
+    .stat-card-val   { font-size:36px;font-weight:700;color:var(--primary); }
+    .stat-card-label { font-size:13px;color:var(--text-light);margin-top:4px; }
+
+    /* Modale */
+    .modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px; }
+    .modal-box { background:#fff;border-radius:12px;padding:28px;width:100%;max-width:480px;box-shadow:0 8px 40px rgba(0,0,0,.2); }
+    .modal-title { font-size:17px;font-weight:700;margin-bottom:20px; }
+    .modal-actions { display:flex;gap:8px;justify-content:flex-end;margin-top:20px; }
   </style>
 </head>
 <body>
+<div class="app-layout">
 
-<!-- ══ LOGIN ══════════════════════════════════════════ -->
-<div id="login-screen" class="login-center">
-  <div class="card" style="width:100%;max-width:380px;text-align:center;padding:36px 28px;">
-    <div style="font-size:52px;margin-bottom:12px;">🗺️</div>
-    <h1 style="font-size:21px;margin-bottom:4px;">Distribution Tracker</h1>
-    <p style="color:#666;margin-bottom:28px;font-size:14px;">Panneau d'administration</p>
-    <form id="login-form">
-      <div class="form-group" style="text-align:left;">
-        <label>Mot de passe</label>
-        <input type="password" id="pwd-input" placeholder="Mot de passe" autocomplete="current-password" required>
-      </div>
-      <button type="submit" class="btn btn-primary w-full" style="margin-top:8px;">Connexion</button>
-      <p id="login-err" class="error-msg hidden" aria-live="polite"></p>
-    </form>
-  </div>
-</div>
-
-<!-- ══ ADMIN UI ════════════════════════════════════════ -->
-<div id="admin-screen" class="admin-layout hidden">
-
-  <header class="admin-header">
-    <!-- Bouton retour mobile (visible uniquement quand en vue détail) -->
-    <button id="mobile-back" onclick="mobileBack()" aria-label="Retour à la liste" style="display:none;">
-      ← <span>Retour</span>
-    </button>
-    <h1 id="header-title">🗺️ Distribution Tracker</h1>
-    <div class="admin-header-right">
-      <button class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);" onclick="logout()">
-        Déconnexion
-      </button>
+  <!-- Header -->
+  <header class="app-header">
+    <div class="app-header-title">🗺️ Distribution Tracker <span style="opacity:.5;font-weight:400;font-size:12px;">Admin</span></div>
+    <div class="app-header-user">
+      <span id="header-name"></span>
+      <button class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;" onclick="logout()">Déconnexion</button>
     </div>
   </header>
 
-  <div class="admin-body" id="admin-body">
+  <!-- Tabs -->
+  <nav class="tab-nav">
+    <button class="tab-btn active" onclick="showTab('dashboard')">📊 Tableau de bord</button>
+    <button class="tab-btn" onclick="showTab('users')">👥 Utilisateurs</button>
+    <button class="tab-btn" onclick="showTab('distributions')">🗺️ Distributions</button>
+    <button class="tab-btn" onclick="showTab('smtp')">📧 SMTP</button>
+    <button class="tab-btn" onclick="showTab('templates')">✉️ Templates</button>
+  </nav>
 
-    <!-- ── Sidebar : liste des distributions ── -->
-    <aside class="admin-sidebar" id="admin-sidebar">
-      <div class="sidebar-header">
-        <h2>Distributions</h2>
-        <button class="btn btn-primary btn-sm" onclick="showCreatePanel()">+ Créer</button>
+  <!-- Content -->
+  <div class="tab-content">
+
+    <!-- ── Dashboard ──────────────────────────────── -->
+    <div id="tab-dashboard" class="tab-panel active">
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-card"><div class="stat-card-val" id="s-users">…</div><div class="stat-card-label">Utilisateurs</div></div>
+        <div class="stat-card"><div class="stat-card-val" id="s-creators">…</div><div class="stat-card-label">Créateurs</div></div>
+        <div class="stat-card"><div class="stat-card-val" id="s-dists">…</div><div class="stat-card-label">Distributions</div></div>
+        <div class="stat-card"><div class="stat-card-val" id="s-active">…</div><div class="stat-card-label">Actives</div></div>
       </div>
-      <div class="sidebar-list" id="sidebar-list">
-        <p style="padding:16px;color:#999;font-size:13px;">Chargement…</p>
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;">Distributions récentes</h3>
+      <div id="recent-dists"></div>
+    </div>
+
+    <!-- ── Users ──────────────────────────────────── -->
+    <div id="tab-users" class="tab-panel">
+      <div class="section-header">
+        <span class="section-title">Utilisateurs</span>
+        <button class="btn btn-primary btn-sm" onclick="openUserModal()">+ Créer un compte</button>
       </div>
-      <!-- FAB mobile -->
-      <button id="mobile-fab" class="btn btn-primary" onclick="showCreatePanel()">+ Nouvelle distribution</button>
-    </aside>
-
-    <!-- ── Contenu principal ── -->
-    <main class="admin-content" id="admin-content">
-
-      <!-- Bienvenue (desktop) -->
-      <div id="panel-welcome" class="flex-center" style="flex-direction:column;height:100%;gap:14px;color:#999;text-align:center;padding:24px;">
-        <div style="font-size:60px;">🗺️</div>
-        <p style="font-size:15px;max-width:320px;">Sélectionnez une distribution dans la liste ou créez-en une nouvelle.</p>
-        <button class="btn btn-primary" onclick="showCreatePanel()">+ Nouvelle distribution</button>
+      <div style="overflow-x:auto;">
+        <table class="data-table" id="users-table">
+          <thead><tr><th>Nom</th><th>Email</th><th>Rôle</th><th>Statut</th><th>Dernière connexion</th><th>Actions</th></tr></thead>
+          <tbody id="users-tbody"></tbody>
+        </table>
       </div>
+    </div>
 
-      <!-- Formulaire de création -->
-      <div id="panel-create" class="hidden">
-        <h2 class="panel-title">Nouvelle distribution</h2>
-        <div class="card" style="max-width:520px;">
-          <form id="create-form">
-            <div class="form-group">
-              <label>Nom de la distribution *</label>
-              <input type="text" id="dist-name" placeholder="ex : Journal du Lundi" required>
-            </div>
-            <div class="form-group">
-              <label>Description (optionnel)</label>
-              <textarea id="dist-desc" placeholder="Secteur, notes…"></textarea>
-            </div>
-            <div class="flex gap-8 mt-16" style="justify-content:flex-end;">
-              <button type="button" class="btn btn-ghost" onclick="cancelCreate()">Annuler</button>
-              <button type="submit" class="btn btn-primary" id="create-btn">Créer</button>
-            </div>
-          </form>
+    <!-- ── Distributions ──────────────────────────── -->
+    <div id="tab-distributions" class="tab-panel">
+      <div class="section-header">
+        <span class="section-title">Toutes les distributions</span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead><tr><th>Nom</th><th>Créateur</th><th>Participants</th><th>Statut</th><th>Créée le</th><th>Actions</th></tr></thead>
+          <tbody id="dists-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── SMTP ───────────────────────────────────── -->
+    <div id="tab-smtp" class="tab-panel">
+      <div class="section-title" style="margin-bottom:20px;">Configuration SMTP</div>
+      <div id="smtp-status-bar"></div>
+      <div class="form-card">
+        <div class="form-group">
+          <label><input type="checkbox" id="smtp-enabled" style="width:auto;margin-right:6px;"> Activer l'envoi d'emails</label>
         </div>
+        <div class="form-row">
+          <div class="form-group"><label>Serveur SMTP *</label><input type="text" id="smtp-host" placeholder="smtp.gmail.com"></div>
+          <div class="form-group"><label>Port</label><input type="number" id="smtp-port" value="587" min="1" max="65535"></div>
+        </div>
+        <div class="form-group">
+          <label><input type="checkbox" id="smtp-secure" style="width:auto;margin-right:6px;"> Connexion sécurisée SSL/TLS (port 465)</label>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Identifiant</label><input type="text" id="smtp-user" placeholder="user@gmail.com" autocomplete="off"></div>
+          <div class="form-group"><label>Mot de passe</label><input type="password" id="smtp-pass" placeholder="Laisser vide pour ne pas changer" autocomplete="new-password"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Nom expéditeur</label><input type="text" id="smtp-from-name" placeholder="Distribution Tracker"></div>
+          <div class="form-group"><label>Email expéditeur</label><input type="email" id="smtp-from-email" placeholder="noreply@mondomaine.fr"></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="saveSMTP()">💾 Enregistrer</button>
+          <div style="display:flex;gap:8px;align-items:center;flex:1;">
+            <input type="email" id="smtp-test-to" placeholder="Email de test" style="flex:1;min-width:160px;">
+            <button class="btn btn-ghost btn-sm" onclick="testSMTP()">📨 Tester</button>
+          </div>
+        </div>
+        <p id="smtp-msg" style="font-size:13px;margin-top:10px;display:none;"></p>
       </div>
+    </div>
 
-      <!-- Détail d'une distribution -->
-      <div id="panel-detail" class="hidden">
-        <div id="detail-content"></div>
+    <!-- ── Templates ──────────────────────────────── -->
+    <div id="tab-templates" class="tab-panel">
+      <div class="section-title" style="margin-bottom:16px;">Templates email</div>
+      <p class="text-muted text-sm" style="margin-bottom:20px;">Variables disponibles affichées sous chaque template. Syntaxe : <code style="background:#f0f0f0;padding:2px 5px;border-radius:4px;">{{variable}}</code></p>
+      <div id="templates-list"></div>
+    </div>
+
+  </div><!-- end tab-content -->
+</div><!-- end app-layout -->
+
+<!-- ── Modale utilisateur ─────────────────────────── -->
+<div id="user-modal" class="modal-overlay" style="display:none;" onclick="closeUserModal()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-title" id="user-modal-title">Créer un compte</div>
+    <div class="form-row">
+      <div class="form-group"><label>Prénom / Nom *</label><input type="text" id="um-name" placeholder="Aline Dupont"></div>
+      <div class="form-group"><label>Rôle *</label>
+        <select id="um-role"><option value="creator">Créateur</option><option value="admin">Admin</option></select>
       </div>
-
-    </main>
-  </div>
-</div>
-
-<!-- ══ MODALE QR CODE ═════════════════════════════════ -->
-<div id="qr-modal" class="overlay hidden" onclick="closeQrModal()" role="dialog" aria-modal="true" aria-label="QR Code">
-  <div class="modal" onclick="event.stopPropagation()" style="text-align:center;max-width:380px;">
-    <h3>QR Code — Distribution</h3>
-    <img id="qr-img" src="" alt="QR Code" style="max-width:220px;display:block;margin:16px auto;border-radius:8px;border:2px solid var(--border);">
-    <p id="qr-url-text" style="font-size:12px;color:#607D8B;word-break:break-all;margin-bottom:16px;"></p>
-    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-      <button class="btn btn-ghost btn-sm" onclick="copyQrUrl()">📋 Copier</button>
-      <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨️ Imprimer</button>
-      <button class="btn btn-primary btn-sm" onclick="closeQrModal()">Fermer</button>
+    </div>
+    <div class="form-group"><label>Email *</label><input type="email" id="um-email" placeholder="aline@exemple.fr"></div>
+    <div class="form-group"><label>Mot de passe <span style="color:#607D8B;font-size:12px;">(laisser vide = généré auto)</span></label>
+      <input type="text" id="um-password" placeholder="Optionnel — minimum 8 caractères">
+    </div>
+    <div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+      <input type="checkbox" id="um-welcome" checked style="width:auto;"> Envoyer un email de bienvenue (si SMTP configuré)
+    </label></div>
+    <p id="um-error" style="color:#C62828;font-size:13px;margin-bottom:8px;display:none;"></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeUserModal()">Annuler</button>
+      <button class="btn btn-primary" id="um-submit" onclick="saveUser()">Créer</button>
     </div>
   </div>
 </div>
 
-<!-- ══ MODALE CONFIRMATION ════════════════════════════ -->
-<div id="confirm-modal" class="overlay hidden" role="dialog" aria-modal="true">
-  <div class="modal">
-    <h3 id="confirm-title">Confirmation</h3>
-    <p id="confirm-msg" style="color:#666;margin:12px 0 0;font-size:14px;line-height:1.5;"></p>
-    <div class="flex gap-8 mt-24" style="justify-content:flex-end;">
+<!-- ── Modale réattribution ──────────────────────── -->
+<div id="reassign-modal" class="modal-overlay" style="display:none;" onclick="closeReassign()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-title">Réattribuer la distribution</div>
+    <p class="text-muted text-sm" style="margin-bottom:16px;" id="reassign-dist-name"></p>
+    <div class="form-group"><label>Nouveau créateur</label>
+      <select id="reassign-select" style="font-size:15px;"></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeReassign()">Annuler</button>
+      <button class="btn btn-primary" onclick="doReassign()">Réattribuer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modale confirmation ────────────────────────── -->
+<div id="confirm-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <div class="modal-title" id="cm-title">Confirmation</div>
+    <p id="cm-msg" class="text-muted" style="margin-bottom:4px;"></p>
+    <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeConfirm()">Annuler</button>
-      <button class="btn btn-danger" id="confirm-ok-btn">Confirmer</button>
+      <button class="btn btn-danger" id="cm-ok">Confirmer</button>
     </div>
   </div>
 </div>
 
 <script>
-let adminPwd = '';
-let currentDistId = null;
-let distributions = [];
-const isMobile = () => window.innerWidth <= 767;
+// ── Auth ──────────────────────────────────────────────
+const TOKEN = localStorage.getItem('authToken');
+const ME    = JSON.parse(localStorage.getItem('authUser') || '{}');
+if (!TOKEN || ME.role !== 'admin') location.replace('login.html');
+document.getElementById('header-name').textContent = ME.name || '';
 
-// ═══ Auth ════════════════════════════════════════════
-document.getElementById('login-form').onsubmit = async e => {
-  e.preventDefault();
-  const btn = e.target.querySelector('[type=submit]');
-  btn.disabled = true; btn.textContent = 'Connexion…';
-  const r = await fetch('/api/admin/login', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password: document.getElementById('pwd-input').value })
-  });
-  btn.disabled = false; btn.textContent = 'Connexion';
-  if (r.ok) {
-    adminPwd = document.getElementById('pwd-input').value;
-    sessionStorage.setItem('adminPwd', adminPwd);
-    showAdmin();
-  } else {
-    const el = document.getElementById('login-err');
-    el.textContent = 'Mot de passe incorrect';
-    el.classList.remove('hidden');
-    document.getElementById('pwd-input').select();
-  }
-};
-
-function logout() {
-  adminPwd = ''; sessionStorage.removeItem('adminPwd');
-  document.getElementById('admin-screen').classList.add('hidden');
-  document.getElementById('login-screen').classList.remove('hidden');
+function apiFetch(url, opts = {}) {
+  return fetch(url, { ...opts, headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+TOKEN, ...(opts.headers||{}) } });
 }
-
-async function showAdmin() {
-  document.getElementById('login-screen').classList.add('hidden');
-  document.getElementById('admin-screen').classList.remove('hidden');
-  await loadDistributions();
-}
-
-// ═══ Distributions ══════════════════════════════════
-async function loadDistributions() {
-  const r = await adminFetch('/api/distributions');
-  if (!r.ok) return;
-  distributions = await r.json();
-  renderSidebar();
-  if (currentDistId) {
-    const d = distributions.find(d => d.id === currentDistId);
-    if (d) selectDist(d.id);
-  }
-}
-
-function renderSidebar() {
-  const el = document.getElementById('sidebar-list');
-  if (!distributions.length) {
-    el.innerHTML = '<p style="padding:20px 16px;color:#999;font-size:14px;text-align:center;">Aucune distribution.<br>Créez-en une !</p>';
-    return;
-  }
-  el.innerHTML = distributions.map(d => `
-    <div class="sidebar-item ${d.id === currentDistId ? 'active' : ''}" onclick="selectDist('${d.id}')">
-      <div class="sidebar-item-name">${esc(d.name)}</div>
-      <div class="sidebar-item-meta">
-        <span class="badge badge-${d.status === 'active' ? 'open' : 'closed'}">${d.status === 'active' ? 'Active' : 'Clôturée'}</span>
-        <span>${d.user_count} participant${d.user_count > 1 ? 's' : ''}</span>
-        <span>${fmtDate(d.created_at)}</span>
-      </div>
-    </div>
-  `).join('');
-}
-
-async function selectDist(id) {
-  currentDistId = id;
-  renderSidebar();
-  // Affichage du bouton retour mobile
-  setMobileDetailOpen(true);
-
-  hideAll();
-  document.getElementById('panel-detail').classList.remove('hidden');
-  document.getElementById('detail-content').innerHTML = '<p style="color:#999;padding:20px;text-align:center;">Chargement…</p>';
-
-  const r = await adminFetch(`/api/distributions/${id}`);
-  if (!r.ok) return;
-  renderDetail(await r.json());
-}
-
-function renderDetail(d) {
-  document.getElementById('detail-content').innerHTML = `
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
-      <div style="min-width:0;flex:1;">
-        <h2 class="panel-title" style="margin-bottom:3px;word-break:break-word;">${esc(d.name)}</h2>
-        ${d.description ? `<p class="text-muted text-sm">${esc(d.description)}</p>` : ''}
-      </div>
-      <span class="badge badge-${d.status === 'active' ? 'open' : 'closed'}" style="font-size:12px;padding:5px 12px;flex-shrink:0;">
-        ${d.status === 'active' ? '● Active' : '✓ Clôturée'}
-      </span>
-    </div>
-
-    <div class="panel-actions">
-      <button class="btn btn-primary btn-sm" onclick="showQR('${d.id}')">🔲 QR Code</button>
-      <button class="btn btn-ghost  btn-sm" onclick="openTracking('${d.id}')">🗺️ Suivi live</button>
-      <button class="btn btn-ghost  btn-sm" onclick="openReport('${d.id}')">📊 Rapport</button>
-      ${d.status === 'active' ? `<button class="btn btn-warning btn-sm" onclick="confirmClose('${d.id}')">🔒 Clôturer</button>` : ''}
-      <button class="btn btn-danger btn-sm" onclick="confirmDelete('${d.id}')">🗑️ Supprimer</button>
-    </div>
-
-    <div class="dist-info-grid">
-      <div class="info-box"><div class="info-box-label">Créée le</div><div class="info-box-value" style="font-size:14px;">${fmtDate(d.created_at, true)}</div></div>
-      <div class="info-box"><div class="info-box-label">Participants</div><div class="info-box-value">${d.users ? d.users.length : 0}</div></div>
-      ${d.closed_at ? `<div class="info-box"><div class="info-box-label">Clôturée le</div><div class="info-box-value" style="font-size:14px;">${fmtDate(d.closed_at, true)}</div></div>` : ''}
-    </div>
-
-    <h3 style="font-size:14px;font-weight:700;margin-bottom:10px;">Participants</h3>
-    ${d.users && d.users.length ? `
-    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-      <table class="users-table">
-        <thead><tr><th>Nom</th><th>Statut</th><th>Rejoint</th><th>Vu</th></tr></thead>
-        <tbody>${d.users.map(u => `
-          <tr>
-            <td><div class="user-name-cell"><span class="color-dot" style="background:${u.color};"></span>${esc(u.name)}</div></td>
-            <td><span class="badge badge-${u.status}">${statusLabel(u.status)}</span></td>
-            <td style="white-space:nowrap;">${fmtDate(u.joined_at, true)}</td>
-            <td style="white-space:nowrap;">${u.last_seen ? fmtDate(u.last_seen, true) : '—'}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table>
-    </div>` : `<p class="text-muted text-sm">Aucun participant. Partagez le QR Code ou le lien pour que les utilisateurs rejoignent.</p>`}
-  `;
-}
-
-// ═══ Création ══════════════════════════════════════
-document.getElementById('create-form').onsubmit = async e => {
-  e.preventDefault();
-  const btn = document.getElementById('create-btn');
-  btn.disabled = true; btn.textContent = 'Création…';
-  const r = await adminFetch('/api/distributions', {
-    method: 'POST',
-    body: JSON.stringify({ name: document.getElementById('dist-name').value, description: document.getElementById('dist-desc').value })
-  });
-  btn.disabled = false; btn.textContent = 'Créer';
-  if (!r.ok) { alert('Erreur lors de la création'); return; }
-  const d = await r.json();
-  document.getElementById('dist-name').value = '';
-  document.getElementById('dist-desc').value = '';
-  await loadDistributions();
-  await selectDist(d.id);
-  showQR(d.id);
-};
-
-function cancelCreate() {
-  if (currentDistId) { hideAll(); document.getElementById('panel-detail').classList.remove('hidden'); }
-  else { showWelcome(); }
-}
-
-// ═══ QR Code ═══════════════════════════════════════
-let qrUrl = '';
-async function showQR(id) {
-  const r = await adminFetch(`/api/distributions/${id}/qr`);
-  if (!r.ok) return;
-  const { qr, url } = await r.json();
-  qrUrl = url;
-  document.getElementById('qr-img').src = qr;
-  document.getElementById('qr-url-text').textContent = url;
-  document.getElementById('qr-modal').classList.remove('hidden');
-}
-function closeQrModal()  { document.getElementById('qr-modal').classList.add('hidden'); }
-function copyQrUrl() {
-  navigator.clipboard.writeText(qrUrl).then(() => {
-    const btn = event.target;
-    btn.textContent = '✓ Copié !';
-    setTimeout(() => btn.textContent = '📋 Copier', 2000);
-  });
-}
-
-// ═══ Ouvrir pages ══════════════════════════════════
-function openTracking(id) { window.open(`track.html?id=${id}&pwd=${encodeURIComponent(adminPwd)}`, '_blank'); }
-function openReport(id)   { window.open(`report.html?id=${id}&pwd=${encodeURIComponent(adminPwd)}`, '_blank'); }
-
-// ═══ Clôturer ══════════════════════════════════════
-function confirmClose(id) {
-  showConfirm('Clôturer la distribution', 'Les utilisateurs ne pourront plus envoyer de positions. Voulez-vous confirmer ?', async () => {
-    const r = await adminFetch(`/api/distributions/${id}/close`, { method: 'POST' });
-    if (r.ok) { closeConfirm(); await loadDistributions(); await selectDist(id); }
-  });
-}
-
-// ═══ Supprimer ═════════════════════════════════════
-function confirmDelete(id) {
-  showConfirm('Supprimer la distribution', 'Toutes les données (routes, participants) seront définitivement supprimées. Cette action est irréversible.', async () => {
-    const r = await adminFetch(`/api/distributions/${id}`, { method: 'DELETE' });
-    if (r.ok) { currentDistId = null; closeConfirm(); setMobileDetailOpen(false); await loadDistributions(); showWelcome(); }
-  });
-}
-
-// ═══ Navigation mobile ═════════════════════════════
-function setMobileDetailOpen(open) {
-  const body = document.getElementById('admin-body');
-  const backBtn = document.getElementById('mobile-back');
-  if (open) {
-    body.classList.add('detail-open');
-    backBtn.style.display = 'flex';
-  } else {
-    body.classList.remove('detail-open');
-    backBtn.style.display = 'none';
-  }
-}
-
-function mobileBack() {
-  currentDistId = null;
-  setMobileDetailOpen(false);
-  renderSidebar();
-  showWelcome();
-}
-
-// ═══ Panels ════════════════════════════════════════
-function hideAll() {
-  ['panel-welcome', 'panel-create', 'panel-detail'].forEach(id => document.getElementById(id).classList.add('hidden'));
-}
-function showWelcome()     { hideAll(); document.getElementById('panel-welcome').classList.remove('hidden'); }
-function showCreatePanel() {
-  setMobileDetailOpen(true);
-  hideAll();
-  document.getElementById('panel-create').classList.remove('hidden');
-  setTimeout(() => document.getElementById('dist-name').focus(), 100);
-}
-
-// ═══ Modale de confirmation ════════════════════════
-function showConfirm(title, msg, cb) {
-  document.getElementById('confirm-title').textContent = title;
-  document.getElementById('confirm-msg').textContent = msg;
-  document.getElementById('confirm-ok-btn').onclick = cb;
-  document.getElementById('confirm-modal').classList.remove('hidden');
-}
-function closeConfirm() { document.getElementById('confirm-modal').classList.add('hidden'); }
-
-// Fermer modales avec Escape
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeQrModal(); closeConfirm(); }
-});
-
-// ═══ Helpers ═══════════════════════════════════════
-async function adminFetch(url, opts = {}) {
-  return fetch(url, {
-    ...opts, headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd, ...(opts.headers || {}) }
-  });
-}
-function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function fmtDate(ts, withTime = false) {
+function logout() { localStorage.removeItem('authToken'); localStorage.removeItem('authUser'); location.replace('login.html'); }
+function esc(s)    { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtDate(ts, time=false) {
   if (!ts) return '—';
   const d = new Date(ts);
-  const date = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  return withTime ? date + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : date;
+  return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'}) +
+    (time ? ' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '');
 }
-function statusLabel(s) { return { active: 'Actif', paused: 'En pause', done: 'Terminé' }[s] || s; }
+function statusLabel(s) { return {active:'Actif',paused:'En pause',done:'Terminé',closed:'Clôturée',open:'Active'}[s]||s; }
 
-// ═══ Init ══════════════════════════════════════════
-window.addEventListener('load', () => {
-  const saved = sessionStorage.getItem('adminPwd');
-  if (saved) { adminPwd = saved; showAdmin(); }
-});
+// ── Tabs ──────────────────────────────────────────────
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`tab-${name}`).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (name === 'dashboard')      loadDashboard();
+  else if (name === 'users')     loadUsers();
+  else if (name === 'distributions') loadDists();
+  else if (name === 'smtp')      loadSMTP();
+  else if (name === 'templates') loadTemplates();
+}
+
+// ── Dashboard ────────────────────────────────────────
+async function loadDashboard() {
+  const [users, dists] = await Promise.all([
+    apiFetch('/api/admin/users').then(r => r.json()),
+    apiFetch('/api/distributions').then(r => r.json())
+  ]);
+  document.getElementById('s-users').textContent    = users.length;
+  document.getElementById('s-creators').textContent = users.filter(u => u.role==='creator').length;
+  document.getElementById('s-dists').textContent    = dists.length;
+  document.getElementById('s-active').textContent   = dists.filter(d => d.status==='active').length;
+  document.getElementById('recent-dists').innerHTML = dists.slice(0,6).map(d => `
+    <div class="card-sm" style="margin-bottom:8px;display:flex;align-items:center;gap:12px;">
+      <div style="flex:1;">
+        <div style="font-weight:600;">${esc(d.name)}</div>
+        <div class="text-sm text-muted">${esc(d.creator_name||'—')} · ${d.user_count} participant${d.user_count>1?'s':''} · ${fmtDate(d.created_at)}</div>
+      </div>
+      <span class="badge badge-${d.status==='active'?'open':'closed'}">${d.status==='active'?'Active':'Clôturée'}</span>
+    </div>`).join('') || '<p class="text-muted text-sm">Aucune distribution</p>';
+}
+
+// ── Users ─────────────────────────────────────────────
+let allUsers = [];
+async function loadUsers() {
+  allUsers = await apiFetch('/api/admin/users').then(r => r.json());
+  document.getElementById('users-tbody').innerHTML = allUsers.map(u => `
+    <tr>
+      <td style="font-weight:600;">${esc(u.name)}</td>
+      <td>${esc(u.email)}</td>
+      <td><span class="role-badge role-${u.role}">${u.role==='admin'?'Admin':'Créateur'}</span></td>
+      <td><span class="badge badge-${u.active?'active':'closed'}">${u.active?'Actif':'Désactivé'}</span></td>
+      <td>${fmtDate(u.last_login,true)}</td>
+      <td><div class="table-actions">
+        <button class="btn btn-ghost btn-sm" onclick="editUser('${u.id}')">✏️</button>
+        <button class="btn btn-ghost btn-sm" onclick="resetPwd('${u.id}','${esc(u.name)}')">🔑</button>
+        ${u.id !== ME.id ? `<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}','${esc(u.name)}')">🗑️</button>` : ''}
+      </div></td>
+    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:#999;">Aucun utilisateur</td></tr>';
+}
+
+function openUserModal(id) {
+  document.getElementById('um-name').value = '';
+  document.getElementById('um-email').value = '';
+  document.getElementById('um-role').value = 'creator';
+  document.getElementById('um-password').value = '';
+  document.getElementById('um-welcome').checked = true;
+  document.getElementById('um-error').style.display = 'none';
+  document.getElementById('user-modal-title').textContent = 'Créer un compte';
+  document.getElementById('user-modal').style.display = 'flex';
+  document.getElementById('um-email').disabled = false;
+  setTimeout(() => document.getElementById('um-name').focus(), 50);
+}
+function closeUserModal() { document.getElementById('user-modal').style.display = 'none'; }
+
+async function saveUser() {
+  const name = document.getElementById('um-name').value.trim();
+  const email = document.getElementById('um-email').value.trim();
+  const role  = document.getElementById('um-role').value;
+  const pwd   = document.getElementById('um-password').value;
+  const welcome = document.getElementById('um-welcome').checked;
+  const errEl = document.getElementById('um-error');
+  if (!name || !email) { errEl.textContent='Nom et email requis'; errEl.style.display=''; return; }
+  const btn = document.getElementById('um-submit');
+  btn.disabled = true; btn.textContent = 'Création…';
+  const r = await apiFetch('/api/admin/users', { method:'POST', body: JSON.stringify({ name, email, role, password: pwd||undefined, sendWelcome: welcome }) });
+  const d = await r.json();
+  btn.disabled = false; btn.textContent = 'Créer';
+  if (!r.ok) { errEl.textContent = d.error; errEl.style.display=''; return; }
+  closeUserModal();
+  if (d.generatedPassword) alert(`✅ Compte créé !\n\nMot de passe généré : ${d.generatedPassword}\n\n${welcome ? 'Un email a été envoyé si le SMTP est configuré.' : 'Communiquez ce mot de passe manuellement.'}`);
+  loadUsers();
+}
+
+function editUser(id) {
+  const u = allUsers.find(x => x.id === id);
+  if (!u) return;
+  document.getElementById('um-name').value  = u.name;
+  document.getElementById('um-email').value = u.email;
+  document.getElementById('um-role').value  = u.role;
+  document.getElementById('um-password').value = '';
+  document.getElementById('um-welcome').checked = false;
+  document.getElementById('um-error').style.display = 'none';
+  document.getElementById('user-modal-title').textContent = 'Modifier le compte';
+  document.getElementById('um-email').disabled = true;
+  document.getElementById('user-modal').style.display = 'flex';
+  const btn = document.getElementById('um-submit');
+  btn.textContent = 'Enregistrer';
+  btn.onclick = async () => {
+    const name = document.getElementById('um-name').value.trim();
+    const role = document.getElementById('um-role').value;
+    const errEl = document.getElementById('um-error');
+    btn.disabled = true;
+    const r = await apiFetch(`/api/admin/users/${id}`, { method:'PUT', body: JSON.stringify({ name, role, active: u.active }) });
+    const d = await r.json();
+    btn.disabled = false;
+    if (!r.ok) { errEl.textContent = d.error; errEl.style.display=''; return; }
+    btn.onclick = saveUser; btn.textContent = 'Créer';
+    closeUserModal(); loadUsers();
+  };
+}
+
+async function resetPwd(id, name) {
+  if (!confirm(`Réinitialiser le mot de passe de ${name} ?`)) return;
+  const r = await apiFetch(`/api/admin/users/${id}/reset-password`, { method:'POST', body: JSON.stringify({}) });
+  const d = await r.json();
+  if (r.ok && d.generatedPassword) alert(`Nouveau mot de passe de ${name} :\n\n${d.generatedPassword}\n\nCommuniquez-le à l'utilisateur.`);
+  else if (r.ok) alert('Lien de réinitialisation envoyé par email.');
+}
+
+function deleteUser(id, name) {
+  showConfirm(`Supprimer ${name} ?`, 'Toutes ses distributions resteront mais seront sans créateur.', async () => {
+    await apiFetch(`/api/admin/users/${id}`, { method:'DELETE' }); closeConfirm(); loadUsers();
+  });
+}
+
+// ── Distributions ────────────────────────────────────
+let allDists = [];
+async function loadDists() {
+  allDists = await apiFetch('/api/distributions').then(r => r.json());
+  if (!allUsers.length) allUsers = await apiFetch('/api/admin/users').then(r => r.json());
+  document.getElementById('dists-tbody').innerHTML = allDists.map(d => `
+    <tr>
+      <td style="font-weight:600;max-width:200px;word-break:break-word;">${esc(d.name)}</td>
+      <td>${esc(d.creator_name||'—')}</td>
+      <td style="text-align:center;">${d.user_count}</td>
+      <td><span class="badge badge-${d.status==='active'?'open':'closed'}">${d.status==='active'?'Active':'Clôturée'}</span></td>
+      <td>${fmtDate(d.created_at)}</td>
+      <td><div class="table-actions">
+        <button class="btn btn-ghost btn-sm" onclick="window.open('track.html?id=${d.id}','_blank')" title="Suivi live">🗺️</button>
+        <button class="btn btn-ghost btn-sm" onclick="window.open('report.html?id=${d.id}','_blank')" title="Rapport">📊</button>
+        <button class="btn btn-ghost btn-sm" onclick="openReassign('${d.id}','${esc(d.name)}')" title="Réattribuer">🔄</button>
+        ${d.status==='active'?`<button class="btn btn-warning btn-sm" onclick="closeDist('${d.id}')">🔒</button>`:''}
+      </div></td>
+    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:#999;">Aucune distribution</td></tr>';
+}
+
+async function closeDist(id) {
+  if (!confirm('Clôturer cette distribution ?')) return;
+  await apiFetch(`/api/distributions/${id}/close`, { method:'POST' }); loadDists();
+}
+
+let reassignDistId = null;
+function openReassign(id, name) {
+  reassignDistId = id;
+  document.getElementById('reassign-dist-name').textContent = `Distribution : ${name}`;
+  const creators = allUsers.filter(u => u.role === 'creator' || u.role === 'admin');
+  document.getElementById('reassign-select').innerHTML = creators.map(u =>
+    `<option value="${u.id}">${esc(u.name)} (${u.role})</option>`).join('');
+  document.getElementById('reassign-modal').style.display = 'flex';
+}
+function closeReassign() { document.getElementById('reassign-modal').style.display = 'none'; }
+async function doReassign() {
+  const creatorId = document.getElementById('reassign-select').value;
+  await apiFetch(`/api/distributions/${reassignDistId}/reassign`, { method:'PUT', body: JSON.stringify({ creatorId }) });
+  closeReassign(); loadDists();
+}
+
+// ── SMTP ─────────────────────────────────────────────
+async function loadSMTP() {
+  const s = await apiFetch('/api/admin/smtp').then(r => r.json());
+  document.getElementById('smtp-enabled').checked  = !!s.enabled;
+  document.getElementById('smtp-host').value        = s.host || '';
+  document.getElementById('smtp-port').value        = s.port || 587;
+  document.getElementById('smtp-secure').checked   = !!s.secure;
+  document.getElementById('smtp-user').value        = s.smtp_user || '';
+  document.getElementById('smtp-pass').value        = '';
+  document.getElementById('smtp-from-name').value  = s.from_name || 'Distribution Tracker';
+  document.getElementById('smtp-from-email').value = s.from_email || '';
+  const bar = document.getElementById('smtp-status-bar');
+  bar.className = 'smtp-status ' + (s.enabled && s.host ? 'smtp-on' : 'smtp-off');
+  bar.textContent = s.enabled && s.host ? `✅ SMTP activé — ${s.host}:${s.port}` : '⚠️ SMTP non configuré ou désactivé';
+}
+async function saveSMTP() {
+  const msg = document.getElementById('smtp-msg');
+  const pass = document.getElementById('smtp-pass').value;
+  const body = {
+    host: document.getElementById('smtp-host').value, port: document.getElementById('smtp-port').value,
+    secure: document.getElementById('smtp-secure').checked, user: document.getElementById('smtp-user').value,
+    from_name: document.getElementById('smtp-from-name').value, from_email: document.getElementById('smtp-from-email').value,
+    enabled: document.getElementById('smtp-enabled').checked,
+    ...(pass ? { pass } : {})
+  };
+  const r = await apiFetch('/api/admin/smtp', { method:'PUT', body: JSON.stringify(body) });
+  msg.style.color = r.ok ? 'green' : '#C62828';
+  msg.textContent = r.ok ? '✅ Configuration enregistrée' : '❌ Erreur';
+  msg.style.display = '';
+  if (r.ok) loadSMTP();
+  setTimeout(() => msg.style.display='none', 3000);
+}
+async function testSMTP() {
+  const to = document.getElementById('smtp-test-to').value.trim();
+  const msg = document.getElementById('smtp-msg');
+  if (!to) { msg.textContent='Entrez une adresse de test'; msg.style.color='#C62828'; msg.style.display=''; return; }
+  msg.textContent='Envoi…'; msg.style.color='#607D8B'; msg.style.display='';
+  const r = await apiFetch('/api/admin/smtp/test', { method:'POST', body: JSON.stringify({ to }) });
+  const d = await r.json();
+  msg.style.color = r.ok ? 'green' : '#C62828';
+  msg.textContent = r.ok ? `✅ Email envoyé à ${to}` : `❌ ${d.error}`;
+}
+
+// ── Templates ────────────────────────────────────────
+async function loadTemplates() {
+  const templates = await apiFetch('/api/admin/templates').then(r => r.json());
+  const vars = { 'reset-password': ['name','url','app_name'], 'welcome': ['name','email','password','url','app_name'] };
+  document.getElementById('templates-list').innerHTML = templates.map(t => `
+    <div class="form-card" style="margin-bottom:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+        <div>
+          <strong style="font-size:15px;">${t.name}</strong>
+          <div class="text-sm text-muted">Variables : ${(vars[t.name]||[]).map(v => `<code style="background:#f0f0f0;padding:1px 4px;border-radius:3px;">{{${v}}}</code>`).join(' ')}</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveTpl('${t.name}')">💾 Enregistrer</button>
+      </div>
+      <div class="form-group"><label>Sujet</label><input type="text" id="tpl-subj-${t.name}" value="${esc(t.subject)}"></div>
+      <div class="form-group template-editor"><label>Corps HTML</label><textarea id="tpl-html-${t.name}">${esc(t.html)}</textarea></div>
+    </div>`).join('') || '<p class="text-muted">Aucun template</p>';
+}
+async function saveTpl(name) {
+  const subject = document.getElementById(`tpl-subj-${name}`).value;
+  const html    = document.getElementById(`tpl-html-${name}`).value;
+  const r = await apiFetch(`/api/admin/templates/${name}`, { method:'PUT', body: JSON.stringify({ subject, html }) });
+  if (r.ok) alert(`✅ Template "${name}" enregistré`);
+}
+
+// ── Confirm modal ────────────────────────────────────
+function showConfirm(title, msg, cb) {
+  document.getElementById('cm-title').textContent = title;
+  document.getElementById('cm-msg').textContent   = msg;
+  document.getElementById('cm-ok').onclick = cb;
+  document.getElementById('confirm-modal').style.display = 'flex';
+}
+function closeConfirm() { document.getElementById('confirm-modal').style.display = 'none'; }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeConfirm(); closeUserModal(); closeReassign(); } });
+
+// ── Init ─────────────────────────────────────────────
+loadDashboard();
 </script>
 </body>
 </html>
