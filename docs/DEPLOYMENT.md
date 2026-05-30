@@ -1,4 +1,4 @@
-# Guide de déploiement — Distribution Tracker v2.1.0
+# Guide de déploiement — Distribution Tracker v2.2.0
 
 ---
 
@@ -90,12 +90,56 @@ mkdir -p /opt/web-distributions/data
 | Variable | Défaut | Requis | Description |
 |---|---|---|---|
 | `PORT` | `3000` | Non | Port d'écoute HTTP |
-| `ADMIN_EMAIL` | `admin@localhost` | **Prod** | Email du 1er compte admin |
-| `ADMIN_PASSWORD` | `admin123` | **Prod** | Mot de passe du 1er compte admin |
+| `ADMIN_EMAIL` | `admin@localhost` | **Prod** | Email du compte admin (synchronisé à chaque démarrage) |
+| `ADMIN_PASSWORD` | `admin123` | **Prod** | Mot de passe admin — **changer en production !** |
 | `JWT_SECRET` | *(valeur dev)* | **Prod** | Clé secrète JWT — générer avec `openssl rand -hex 32` |
-| `BASE_URL` | *(auto)* | En prod | URL publique complète (sans `/` final) |
+| `BASE_URL` | *(auto)* | **Prod + SSO** | URL publique complète — obligatoire pour le SSO OAuth2 |
 | `DATA_DIR` | `/data` | Non | Répertoire SQLite dans le container |
 | `NODE_ENV` | `production` | Non | Environnement Node.js |
+
+> **`BASE_URL` et SSO** : Si vous activez le SSO Synology, `BASE_URL` doit être l'URL publique exacte de votre application (ex : `https://distrib.mondomaine.fr`). L'URI de redirection OAuth2 sera `BASE_URL/api/auth/sso/callback` — c'est cette valeur à saisir dans Synology SSO Server.
+
+---
+
+## 3b. Configuration LDAP/SSO *(v2.2)*
+
+La configuration LDAP et SSO se fait **entièrement depuis l'interface admin** (onglet **🔑 Authentification**) — aucune variable d'environnement supplémentaire n'est nécessaire.
+
+### LDAP (Synology Directory Server / Active Directory)
+
+1. Admin → **🔑 Authentification** → activer le toggle **LDAP / Active Directory**
+2. Renseigner dans l'accordéon qui s'ouvre :
+   - **Hôte** : IP ou nom DNS du serveur Synology
+   - **Port** : 389 (LDAP) ou 636 (LDAPS)
+   - **DN de base** : ex `DC=mondomaine,DC=local`
+   - **DN service** : ex `CN=svc-distrib,CN=Users,DC=mondomaine,DC=local`
+   - **Mot de passe service** : mot de passe du compte de lecture
+3. Adapter le **mapping des groupes** (`DISTRIB_ADMIN` → Admin, `DISTRIB_CREATEUR` → Créateur)
+4. Cliquer **🔍 Tester** pour vérifier la connexion
+5. **Enregistrer**
+
+### SSO (Synology SSO Server)
+
+**Prérequis sur le NAS :**
+1. DSM → Centre de paquets → installer **SSO Server**
+2. Ouvrir SSO Server → **Application** → **Créer**
+3. Configurer l'application OAuth :
+   - Nom : `Distribution Tracker`
+   - URI de redirection : `https://[votre-app]/api/auth/sso/callback`
+   - Copier le **Client ID** et le **Client Secret**
+
+**Dans l'interface admin :**
+1. Admin → **🔑 Authentification** → activer le toggle **SSO Synology**
+2. Renseigner URL Synology, Client ID, Client Secret
+3. Activer **Ignorer erreurs SSL** si vous utilisez le certificat auto-signé Synology
+4. Tester → Enregistrer
+
+### Rebuild après mise à jour v2.1 → v2.2
+
+```bash
+# Rebuild obligatoire pour installer ldapjs
+docker compose up -d --build
+```
 
 ---
 
@@ -212,3 +256,6 @@ curl http://localhost:3000/
 - [ ] HTTPS activé (Nginx Proxy Manager ou Traefik)
 - [ ] Sauvegarde automatique configurée
 - [ ] `ADMIN_EMAIL` pointe vers une adresse réelle si SMTP configuré
+- [ ] Si LDAP : compte service avec droits **lecture seule** uniquement
+- [ ] Si SSO : URI de redirection configurée exactement dans Synology SSO Server
+- [ ] Si SSO : `BASE_URL` défini avec l'URL publique HTTPS

@@ -1,4 +1,4 @@
-# Documentation API — Distribution Tracker v2.1.0
+# Documentation API — Distribution Tracker v2.2.0
 
 L'API REST est exposée par le serveur Express. Toutes les requêtes et réponses utilisent le format **JSON**.
 
@@ -25,6 +25,130 @@ Authorization: Bearer <token>
 - 🔑 **Admin** — rôle `admin` uniquement
 - 🗺️ **Propriétaire** — créateur de la distribution ou co-gérant/délégué
 - 🌐 **Public** — aucune authentification requise
+
+---
+
+## Authentification externe *(v2.2)*
+
+### `GET /api/auth/config` 🌐
+Retourne les méthodes d'authentification actives (sans credentials). Utilisé par la page de connexion pour afficher ou masquer le bouton SSO et le formulaire.
+
+**Réponse 200**
+```json
+{
+  "localEnabled": true,
+  "ssoEnabled": true,
+  "ldapEnabled": true,
+  "mode": "ldap+sso+local"
+}
+```
+
+| Champ | Description |
+|---|---|
+| `localEnabled` | `true` si le formulaire email/mot de passe est actif (local ou LDAP) |
+| `ssoEnabled` | `true` si le bouton SSO doit être affiché |
+| `ldapEnabled` | `true` si LDAP est actif |
+| `mode` | Combinaison active : `local`, `ldap`, `ldap+local`, `sso`, `sso+local`, `ldap+sso`, `ldap+sso+local` |
+
+---
+
+### `GET /api/auth/sso` 🌐
+Démarre le flux OAuth2 SSO — redirige vers le serveur Synology SSO.
+
+| Code | Cause |
+|---|---|
+| 302 | Redirection vers l'URL d'autorisation Synology SSO |
+| 400 | SSO non configuré (URL ou Client ID manquant) |
+
+---
+
+### `GET /api/auth/sso/callback` 🌐
+Callback OAuth2 appelé par Synology SSO Server après authentification. Usage interne — ne pas appeler directement.
+
+Redirige vers `/sso-callback.html?token=JWT&role=...` en cas de succès, ou vers `/login.html?sso_error=...` en cas d'échec.
+
+---
+
+### `GET /api/admin/auth` 🔑
+Récupère la configuration d'authentification (secrets masqués `••••••••`).
+
+**Réponse 200**
+```json
+{
+  "auth_mode": "ldap+sso+local",
+  "ldap_host": "192.168.1.10",
+  "ldap_port": "389",
+  "ldap_use_ssl": "0",
+  "ldap_base_dn": "DC=mondomaine,DC=local",
+  "ldap_bind_dn": "CN=svc-distrib,CN=Users,DC=mondomaine,DC=local",
+  "ldap_bind_password": "••••••••",
+  "ldap_user_filter": "(|(mail={{login}})(sAMAccountName={{login}})(uid={{login}}))",
+  "auth_group_mapping": "[{\"group\":\"DISTRIB_ADMIN\",\"role\":\"admin\"},{\"group\":\"DISTRIB_CREATEUR\",\"role\":\"creator\"}]",
+  "sso_url": "https://nas.mondomaine.local:5001",
+  "sso_client_id": "abc123",
+  "sso_client_secret": "••••••••",
+  "sso_scope": "user_info",
+  "sso_ignore_ssl": "0",
+  "sso_default_role": ""
+}
+```
+
+---
+
+### `PUT /api/admin/auth` 🔑
+Sauvegarde la configuration d'authentification. Si un secret vaut `••••••••`, la valeur existante est conservée.
+
+**Body** : mêmes champs que la réponse GET, avec les valeurs à modifier.
+
+**`auth_mode`** — combinaison de méthodes actives (séparées par `+`) :
+
+| Valeur | Effet |
+|---|---|
+| `local` | Formulaire email/mot de passe uniquement |
+| `ldap` | LDAP uniquement, pas de fallback local |
+| `ldap+local` | LDAP en priorité, local en secours |
+| `sso` | Bouton SSO uniquement, formulaire masqué |
+| `sso+local` | Bouton SSO + formulaire local |
+| `ldap+sso` | LDAP (formulaire) + bouton SSO, pas de local |
+| `ldap+sso+local` | Les trois méthodes actives simultanément |
+
+---
+
+### `POST /api/admin/auth/test-ldap` 🔑
+Teste la connexion LDAP avec les paramètres fournis.
+
+**Body**
+```json
+{
+  "host": "192.168.1.10", "port": "389", "useSSL": false,
+  "bindDn": "CN=svc,CN=Users,DC=domain,DC=local", "bindPassword": "secret",
+  "baseDn": "DC=domain,DC=local",
+  "filter": "(|(mail={{login}})(sAMAccountName={{login}}))",
+  "testLogin": "user@domain.local"
+}
+```
+
+**Réponse 200**
+```json
+{
+  "connected": true,
+  "message": "Connexion au serveur LDAP réussie",
+  "userFound": true,
+  "userDn": "CN=John,CN=Users,DC=domain,DC=local",
+  "userEmail": "john@domain.local",
+  "userName": "John Doe",
+  "memberOf": ["CN=DISTRIB_ADMIN,CN=Users,DC=domain,DC=local"]
+}
+```
+
+---
+
+### `POST /api/admin/auth/test-sso` 🔑
+Vérifie l'accessibilité du serveur Synology SSO.
+
+**Body** `{ "url": "https://nas:5001", "clientId": "abc", "ignoreSSL": true }`
+
+**Réponse 200** `{ "connected": true, "message": "Serveur SSO Synology accessible", "status": 200 }`
 
 ---
 
@@ -462,4 +586,4 @@ Connexion sur la même URL que l'application.
 | `dist_managers` | Co-gérants et délégués |
 | `smtp_settings` | Configuration email |
 | `email_templates` | Templates bienvenue / réinitialisation |
-| `app_settings` | Paramètres du site (branding, couleurs) *(v2.1)* |
+| `app_settings` | Paramètres du site (branding, couleurs, auth LDAP/SSO) *(v2.1/v2.2)* |

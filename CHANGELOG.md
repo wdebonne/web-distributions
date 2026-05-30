@@ -45,9 +45,11 @@ et ce projet respecte le [Versionnage Sémantique](https://semver.org/lang/fr/).
 - Message d'erreur SSO affiché via paramètre URL au retour d'un échec
 
 ### ⚙️ Panneau admin — Onglet Authentification (nouveau)
-- Sélecteur visuel du mode : Local / LDAP+Local / LDAP uniquement / SSO+Local / SSO uniquement
-- Configuration LDAP : hôte, port, SSL, DN de base, DN service, mot de passe (masqué), filtre utilisateur
-- Configuration SSO : URL Synology, Client ID, Client Secret (masqué), scope, rôle par défaut, option SSL
+- **3 toggles indépendants** : Local / LDAP / SSO activables séparément — toutes les combinaisons possibles
+  - Exemples : Local seul, LDAP+Local, LDAP+SSO+Local, SSO seul, etc.
+- Configuration LDAP en accordéon : hôte, port, SSL, DN de base, DN service, mot de passe (masqué), filtre utilisateur
+- Configuration SSO en accordéon : URL Synology, Client ID, Client Secret (masqué), scope, rôle par défaut, option SSL
+- Les accordéons LDAP/SSO s'ouvrent automatiquement à l'activation du toggle
 - **Test de connexion LDAP** : vérifie le bind service + recherche optionnelle d'un utilisateur de test (retourne DN, email, groupes)
 - **Test de connexion SSO** : vérifie l'accessibilité du serveur + affiche l'URI de redirection à configurer
 - Secrets non renvoyés en clair lors du chargement, non écrasés si non modifiés (placeholder `••••••••`)
