@@ -11,7 +11,13 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
-    html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+    /* Viewport dynamique — exclut la barre du navigateur sur mobile */
+    html { height: -webkit-fill-available; }
+    body {
+      height: 100vh;
+      height: -webkit-fill-available;
+      overflow: hidden; overscroll-behavior: none;
+    }
 
     /* ─ Fiche de connexion ─ */
     .join-overlay {
@@ -59,7 +65,11 @@
     .existing-banner-text strong { display:block;font-size:15px;margin-bottom:2px; }
 
     /* ─ UI de suivi ─ */
-    .tracking-layout { display:flex;flex-direction:column;height:100vh; }
+    .tracking-layout {
+      display: flex; flex-direction: column;
+      height: 100vh;
+      height: -webkit-fill-available; /* iOS Safari */
+    }
     .map-area { flex:1;position:relative;overflow:hidden;min-height:0; }
     #user-map { width:100%;height:100%; }
 
@@ -157,6 +167,33 @@
   <div class="closed-icon">🔒</div>
   <h2 style="font-size:22px;margin-bottom:8px;">Distribution terminée</h2>
   <p style="color:#607D8B;font-size:15px;line-height:1.6;">Cette distribution a été clôturée par l'administrateur.<br>Merci pour votre travail !</p>
+</div>
+
+<!-- ══ ÉCRAN REPRISE DE SESSION ══════════════════════ -->
+<div id="resume-screen" style="
+  display:none; position:fixed; inset:0; z-index:1100;
+  background:linear-gradient(135deg,#1565C0,#0D47A1);
+  flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; padding:32px; gap:16px;
+">
+  <div style="font-size:56px;">🗺️</div>
+  <h2 style="color:#fff;font-size:22px;margin:0;" id="resume-dist-name">Distribution</h2>
+  <div style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.15);border-radius:12px;padding:12px 20px;margin:8px 0;">
+    <div id="resume-color-dot" style="width:16px;height:16px;border-radius:50%;background:#fff;flex-shrink:0;"></div>
+    <span style="color:#fff;font-weight:700;font-size:18px;" id="resume-user-name">…</span>
+  </div>
+  <p style="color:rgba(255,255,255,.8);font-size:14px;max-width:280px;line-height:1.5;">
+    Votre session précédente a été retrouvée. Appuyez pour reprendre et autoriser le GPS.
+  </p>
+  <button onclick="startTracking()" style="
+    background:#fff;color:#1565C0;border:none;border-radius:14px;
+    padding:16px 40px;font-size:17px;font-weight:700;cursor:pointer;
+    box-shadow:0 4px 20px rgba(0,0,0,.2);margin-top:8px;
+  ">▶ Reprendre la distribution</button>
+  <button onclick="clearSession()" style="
+    background:transparent;color:rgba(255,255,255,.6);border:none;
+    font-size:13px;cursor:pointer;padding:8px;margin-top:4px;
+  ">Ce n'est pas moi — changer de nom</button>
 </div>
 
 <!-- ══ FORMULAIRE DE CONNEXION ════════════════════════ -->
@@ -284,7 +321,13 @@ async function init() {
 
   const saved = localStorage.getItem(STORE_KEY);
   if (saved) {
-    try { session = JSON.parse(saved); startTracking(); return; } catch(e) {}
+    try {
+      session = JSON.parse(saved);
+      // Afficher un bouton "Reprendre" — exige un geste utilisateur
+      // pour que iOS/Android autorise le GPS sans bloquer la demande
+      showResumeScreen();
+      return;
+    } catch(e) {}
   }
 
   buildPalette(distData.users.map(u => u.color));
@@ -369,8 +412,9 @@ async function joinDist() {
 
 // ═══ Démarrage du suivi ═════════════════════════════
 async function startTracking() {
-  document.getElementById('join-overlay').style.display  = 'none';
-  document.getElementById('tracking-ui').style.display = 'flex';
+  document.getElementById('join-overlay').style.display   = 'none';
+  document.getElementById('resume-screen').style.display  = 'none';
+  document.getElementById('tracking-ui').style.display    = 'flex';
 
   // Init carte
   map = L.map('user-map', { zoomControl: false }).setView([46.2, 2.2], 14);
@@ -437,21 +481,34 @@ let watchId = null, gpsOk = false;
 
 function startGPS() {
   if (!('geolocation' in navigator)) {
-    setGpsStatus('off', 'Non dispo');
+    setGpsStatus('off', 'GPS indisponible');
+    return;
+  }
+  // Vérifier si le contexte est sécurisé (HTTPS requis pour le GPS)
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+    setGpsStatus('off', 'HTTPS requis');
+    alert('⚠️ Le GPS nécessite une connexion HTTPS. Contactez votre administrateur pour activer le certificat SSL.');
     return;
   }
   setGpsStatus('weak', 'Recherche…');
+  // Une première requête one-shot pour déclencher la demande de permission immédiatement
+  navigator.geolocation.getCurrentPosition(
+    () => {}, // succès — watchPosition prend le relais
+    onGPSErr,
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
   watchId = navigator.geolocation.watchPosition(onGPS, onGPSErr, {
-    enableHighAccuracy: true, maximumAge: 4000, timeout: 15000
+    enableHighAccuracy: true, maximumAge: 5000, timeout: 20000
   });
 }
 
 function onGPS(pos) {
   const { latitude: lat, longitude: lon, accuracy: acc } = pos.coords;
-  setGpsStatus(acc < 30 ? 'good' : 'weak', `±${Math.round(acc)} m`);
+  setGpsStatus(acc < 40 ? 'good' : 'weak', `±${Math.round(acc)} m`);
 
   if (myStatus !== 'running') return;
-  if (acc > 80) return;
+  // Seuil élevé pour les premiers fixes — s'affine ensuite
+  if (acc > 200) return;
 
   const poly = getMyPoly(mySegment);
   poly.addLatLng([lat, lon]);
@@ -471,7 +528,17 @@ function onGPS(pos) {
   socket?.emit('location', { userId: session.userId, token: session.token, lat, lon, ts: Date.now() });
 }
 
-function onGPSErr(err) { setGpsStatus('weak', 'Signal faible'); }
+function onGPSErr(err) {
+  if (err.code === 1) { // PERMISSION_DENIED
+    setGpsStatus('off', 'GPS refusé');
+    document.getElementById('gps-indicator').style.cursor = 'pointer';
+    document.getElementById('gps-indicator').title = 'Autoriser la localisation dans les réglages du navigateur';
+  } else if (err.code === 2) { // POSITION_UNAVAILABLE
+    setGpsStatus('weak', 'Signal faible');
+  } else { // TIMEOUT
+    setGpsStatus('weak', 'Délai dépassé');
+  }
+}
 
 function setGpsStatus(state, label) {
   const dot = document.getElementById('gps-dot');
@@ -609,6 +676,22 @@ function haversine(lat1, lon1, lat2, lon2) {
 }
 
 // ═══ Utilitaires ════════════════════════════════════
+function showResumeScreen() {
+  document.getElementById('resume-dist-name').textContent = distData.name;
+  document.getElementById('resume-user-name').textContent = session.name;
+  document.getElementById('resume-color-dot').style.background = session.color;
+  document.getElementById('resume-screen').style.display = 'flex';
+  document.getElementById('join-overlay').style.display = 'none';
+}
+
+function clearSession() {
+  localStorage.removeItem(STORE_KEY);
+  session = null;
+  document.getElementById('resume-screen').style.display = 'none';
+  document.getElementById('join-overlay').style.display = 'flex';
+  buildPalette(distData.users.map(u => u.color));
+}
+
 function showClosed() {
   if (watchId) navigator.geolocation.clearWatch(watchId);
   clearInterval(timerInterval);
