@@ -92,6 +92,7 @@ async function init() {
 
   // ── Migrations ────────────────────────────────────
   try { db.run('ALTER TABLE distributions ADD COLUMN creator_id TEXT'); } catch(e) {}
+  try { db.run('ALTER TABLE dist_users ADD COLUMN steps INTEGER DEFAULT 0'); } catch(e) {}
 
   // ── Données par défaut ────────────────────────────
   await ensureDefaultAdmin();
@@ -103,19 +104,35 @@ async function init() {
 }
 
 async function ensureDefaultAdmin() {
-  const count = get('SELECT COUNT(*) as n FROM app_users WHERE role=?', ['admin']);
-  if (count && count.n > 0) return;
-
   const email = (process.env.ADMIN_EMAIL || 'admin@localhost').toLowerCase();
   const pwd   = process.env.ADMIN_PASSWORD || 'admin123';
   const hash  = await bcrypt.hash(pwd, 10);
-  const id    = 'admin-' + Date.now();
-  db.run('INSERT INTO app_users (id,email,name,password_hash,role,active,created_at) VALUES (?,?,?,?,?,1,?)',
-    [id, email, 'Administrateur', hash, 'admin', Date.now()]);
 
-  // Assign orphan distributions to this admin
-  db.run('UPDATE distributions SET creator_id=? WHERE creator_id IS NULL', [id]);
-  console.log(`Admin créé : ${email} / ${pwd}`);
+  // Portainer est la source de vérité : toujours synchroniser le compte admin
+  // correspondant à ADMIN_EMAIL avec le mot de passe ADMIN_PASSWORD.
+  const existing = get('SELECT id FROM app_users WHERE LOWER(email)=LOWER(?)', [email]);
+
+  if (existing) {
+    // Met à jour le mot de passe et s'assure que le compte est actif avec le rôle admin
+    db.run('UPDATE app_users SET password_hash=?,role=?,active=1 WHERE id=?', [hash, 'admin', existing.id]);
+    db.run('UPDATE distributions SET creator_id=? WHERE creator_id IS NULL', [existing.id]);
+    console.log(`Admin synchronisé : ${email}`);
+  } else {
+    // Aucun compte avec cet email — en créer un si aucun admin n'existe
+    const anyAdmin = get('SELECT COUNT(*) as n FROM app_users WHERE role=?', ['admin']);
+    if (!anyAdmin || anyAdmin.n === 0) {
+      const id = 'admin-' + Date.now();
+      db.run('INSERT INTO app_users (id,email,name,password_hash,role,active,created_at) VALUES (?,?,?,?,?,1,?)',
+        [id, email, 'Administrateur', hash, 'admin', Date.now()]);
+      db.run('UPDATE distributions SET creator_id=? WHERE creator_id IS NULL', [id]);
+      console.log(`Admin créé : ${email} / ${pwd}`);
+    } else {
+      // Un admin existe mais avec un email différent — ne pas écraser
+      console.log(`⚠️  ADMIN_EMAIL (${email}) ne correspond à aucun compte existant.`);
+      console.log(`    Les variables ADMIN_EMAIL/ADMIN_PASSWORD n'ont pas été appliquées.`);
+      console.log(`    Connectez-vous avec vos identifiants actuels ou corrigez ADMIN_EMAIL.`);
+    }
+  }
 }
 
 function ensureDefaultTemplates() {
@@ -269,7 +286,7 @@ module.exports = {
   getUserByName(distId, name) { return get('SELECT * FROM dist_users WHERE distribution_id=? AND LOWER(name)=LOWER(?)', [distId, name]); },
   validateUserToken(userId, token) { return get('SELECT * FROM dist_users WHERE id=? AND token=?', [userId, token]); },
   getTakenColors(distId)     { return all('SELECT color FROM dist_users WHERE distribution_id=?', [distId]).map(r => r.color); },
-  getDistributionUsers(distId) { return all('SELECT id,name,color,status,joined_at,last_seen FROM dist_users WHERE distribution_id=? ORDER BY joined_at', [distId]); },
+  getDistributionUsers(distId) { return all('SELECT id,name,color,status,joined_at,last_seen,steps FROM dist_users WHERE distribution_id=? ORDER BY joined_at', [distId]); },
   addLocation({ userId, lat, lon, ts, segment }) {
     run('INSERT INTO locations (user_id,lat,lon,ts,segment) VALUES (?,?,?,?,?)', [userId, lat, lon, ts, segment]);
   },
@@ -291,5 +308,6 @@ module.exports = {
   updateUserLastSeen(userId, ts) { run('UPDATE dist_users SET last_seen=? WHERE id=?', [ts, userId]); },
   startSession(userId, now)      { run('INSERT INTO sessions (user_id,start_time) VALUES (?,?)', [userId, now]); },
   endSession(userId, now)        { run('UPDATE sessions SET end_time=? WHERE user_id=? AND end_time IS NULL', [now, userId]); },
-  getUserSessions(userId)        { return all('SELECT * FROM sessions WHERE user_id=? ORDER BY start_time', [userId]); }
+  getUserSessions(userId)        { return all('SELECT * FROM sessions WHERE user_id=? ORDER BY start_time', [userId]); },
+  updateUserSteps(userId, steps) { run('UPDATE dist_users SET steps=? WHERE id=?', [steps, userId]); }
 };
