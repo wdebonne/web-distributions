@@ -1001,9 +1001,9 @@ function selectAuthMode(mode) {
   });
   const hasLdap = mode === 'ldap' || mode === 'ldap+local';
   const hasSso  = mode === 'sso'  || mode === 'sso+local';
-  document.getElementById('ldap-section').style.display = hasLdap ? '' : 'none';
-  document.getElementById('sso-section').style.display  = hasSso  ? '' : 'none';
-  document.getElementById('auth-mapping-section').style.display = (hasLdap || hasSso) ? '' : 'none';
+  document.getElementById('ldap-section').style.display        = hasLdap           ? 'block' : 'none';
+  document.getElementById('sso-section').style.display         = hasSso            ? 'block' : 'none';
+  document.getElementById('auth-mapping-section').style.display = (hasLdap || hasSso) ? 'block' : 'none';
 }
 
 function renderMappingTable() {
