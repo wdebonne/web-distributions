@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#1565C0">
+  <title>Distribution</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+
+    /* ─ Fiche de connexion ─ */
+    .join-overlay {
+      position: fixed; inset: 0; z-index: 1000;
+      background: rgba(0,0,0,.55);
+      display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
+    }
+    .join-sheet {
+      background: #fff; border-radius: 22px 22px 0 0;
+      padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+      width: 100%; max-width: 540px; max-height: 94vh; overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      animation: slideUp .22s ease;
+    }
+    @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+
+    .join-handle { width:40px;height:4px;border-radius:2px;background:#E0E0E0;margin:0 auto 16px; }
+    .join-dist-name { font-weight:700;font-size:21px;margin-bottom:3px;line-height:1.2; }
+    .join-subtitle  { color:#607D8B;font-size:14px;margin-bottom:20px; }
+
+    /* Indicateur d'étape */
+    .step-dots { display:flex;gap:6px;margin-bottom:18px; }
+    .step-dot  { width:7px;height:7px;border-radius:50%;background:#E0E0E0; }
+    .step-dot.on { background:var(--primary); }
+
+    /* Palette de couleurs */
+    .color-palette { display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px; }
+    .cp-item  { display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;user-select:none; }
+    .cp-swatch {
+      width:50px;height:50px;border-radius:50%;border:3px solid transparent;
+      transition:transform .12s,border-color .12s;
+      box-shadow:0 2px 8px rgba(0,0,0,.15);
+    }
+    .cp-swatch:active:not(.taken) { transform:scale(.92); }
+    .cp-swatch.selected { border-color:#212121;box-shadow:0 0 0 4px rgba(33,33,33,.15); transform:scale(1.08); }
+    .cp-swatch.taken    { opacity:.28;cursor:not-allowed; }
+    .cp-label { font-size:10px;color:#607D8B;text-align:center;line-height:1.2; }
+
+    /* Bannière "session retrouvée" */
+    .existing-banner {
+      background:#E3F2FD;border-radius:10px;padding:12px 14px;
+      display:flex;align-items:center;gap:10px;margin-bottom:16px;
+    }
+    .existing-banner-text { flex:1;font-size:14px;line-height:1.4; }
+    .existing-banner-text strong { display:block;font-size:15px;margin-bottom:2px; }
+
+    /* ─ UI de suivi ─ */
+    .tracking-layout { display:flex;flex-direction:column;height:100vh; }
+    .map-area { flex:1;position:relative;overflow:hidden;min-height:0; }
+    #user-map { width:100%;height:100%; }
+
+    /* Bandeau haut */
+    .ribbon {
+      position:absolute;top:0;left:0;right:0;z-index:500;
+      padding:9px 14px;display:flex;align-items:center;gap:10px;
+      background:rgba(21,101,192,.9);color:#fff;backdrop-filter:blur(6px);
+      -webkit-backdrop-filter:blur(6px);
+    }
+    .ribbon-color { width:12px;height:12px;border-radius:50%;border:2px solid rgba(255,255,255,.6);flex-shrink:0; }
+    .ribbon-name  { font-weight:700;font-size:14px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+    .ribbon-status { font-size:12px;opacity:.85;white-space:nowrap;flex-shrink:0; }
+
+    /* Bouton "autres utilisateurs" */
+    .others-toggle {
+      position:absolute;bottom:90px;right:12px;z-index:500;
+      background:#fff;border:1px solid #ccc;border-radius:10px;
+      padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;
+      box-shadow:var(--shadow);display:flex;align-items:center;gap:5px;
+    }
+
+    /* Barre du bas */
+    .action-bar {
+      background:#fff;border-top:1px solid #E0E0E0;
+      padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));
+      display:flex;align-items:center;gap:12px;flex-shrink:0;
+      box-shadow:0 -2px 12px rgba(0,0,0,.07);
+    }
+    .stat-block     { flex:1;text-align:center;padding:4px 0; }
+    .stat-val-big   { font-size:21px;font-weight:700;line-height:1.1; }
+    .stat-lbl-small { font-size:10px;color:#607D8B;text-transform:uppercase;letter-spacing:.4px;margin-top:1px; }
+
+    /* Grand bouton rond pause/reprendre */
+    .action-btn {
+      width:68px;height:68px;border-radius:50%;border:none;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;
+      font-size:28px;box-shadow:0 4px 18px rgba(0,0,0,.2);
+      transition:transform .1s,box-shadow .12s;flex-shrink:0;
+    }
+    .action-btn:active { transform:scale(.9);box-shadow:0 2px 8px rgba(0,0,0,.2); }
+    .action-btn.running { background:#FF9800; }
+    .action-btn.paused  { background:#4CAF50; }
+    .action-btn.done    { background:#9E9E9E;cursor:default; }
+
+    /* Menu de pause */
+    .pause-menu-overlay {
+      position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.5);
+      display:flex;flex-direction:column;justify-content:flex-end;align-items:center;
+    }
+    .pause-menu {
+      background:#fff;border-radius:22px 22px 0 0;
+      padding:24px 20px calc(24px + env(safe-area-inset-bottom,0px));
+      width:100%;max-width:540px;animation:slideUp .22s ease;
+    }
+    .pause-menu h3 { font-size:18px;margin-bottom:4px; }
+    .pause-menu p  { color:#607D8B;font-size:14px;margin-bottom:20px;line-height:1.5; }
+
+    /* Écran de clôture */
+    .closed-screen {
+      position:fixed;inset:0;background:#fff;z-index:2000;
+      display:none;flex-direction:column;align-items:center;justify-content:center;
+      text-align:center;padding:32px;
+    }
+    .closed-icon { font-size:64px;margin-bottom:16px; }
+
+    /* GPS status indicator */
+    .gps-indicator {
+      position:absolute;top:52px;right:12px;z-index:500;
+      background:rgba(255,255,255,.9);border-radius:20px;
+      padding:5px 10px;font-size:11px;font-weight:600;
+      display:flex;align-items:center;gap:5px;box-shadow:var(--shadow);
+    }
+    .gps-dot { width:7px;height:7px;border-radius:50%;flex-shrink:0; }
+    .gps-dot.good { background:#4CAF50;animation:pulse 2s infinite; }
+    .gps-dot.weak { background:#FF9800;animation:pulse 1s infinite; }
+    .gps-dot.off  { background:#F44336; }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.4} }
+
+    /* Responsive */
+    @media (max-width: 380px) {
+      .cp-swatch { width:44px;height:44px; }
+      .action-btn { width:60px;height:60px;font-size:24px; }
+      .stat-val-big { font-size:18px; }
+    }
+    @media (min-width: 540px) {
+      .color-palette { grid-template-columns:repeat(5,1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ ÉCRAN DE CLÔTURE ═══════════════════════════════ -->
+<div class="closed-screen" id="closed-screen">
+  <div class="closed-icon">🔒</div>
+  <h2 style="font-size:22px;margin-bottom:8px;">Distribution terminée</h2>
+  <p style="color:#607D8B;font-size:15px;line-height:1.6;">Cette distribution a été clôturée par l'administrateur.<br>Merci pour votre travail !</p>
+</div>
+
+<!-- ══ FORMULAIRE DE CONNEXION ════════════════════════ -->
+<div id="join-overlay" class="join-overlay">
+  <div class="join-sheet" role="dialog" aria-label="Rejoindre la distribution">
+    <div class="join-handle"></div>
+    <div id="join-dist-name" class="join-dist-name">Chargement…</div>
+    <div id="join-subtitle"  class="join-subtitle">Distribution de courriers</div>
+
+    <!-- Étape 1 : nom -->
+    <div id="step-1">
+      <div class="step-dots"><div class="step-dot on"></div><div class="step-dot"></div></div>
+      <div class="form-group">
+        <label for="name-input">Votre nom ou équipe *</label>
+        <input type="text" id="name-input" placeholder="ex : Aline, Équipe B…"
+          autocomplete="off" autocorrect="off" autocapitalize="words" maxlength="40">
+      </div>
+      <p id="step1-error" style="color:#C62828;font-size:13px;margin-top:4px;display:none;"></p>
+      <button class="btn btn-primary w-full" style="margin-top:10px;" onclick="goStep2()">Suivant →</button>
+    </div>
+
+    <!-- Étape 2 : couleur ou confirmation session existante -->
+    <div id="step-2" style="display:none;">
+      <div class="step-dots"><div class="step-dot"></div><div class="step-dot on"></div></div>
+
+      <!-- Session existante -->
+      <div id="existing-banner" class="existing-banner" style="display:none;">
+        <div style="font-size:30px;">👋</div>
+        <div class="existing-banner-text">
+          <strong id="existing-name-text"></strong>
+          Votre session est retrouvée. Continuez là où vous vous étiez arrêté !
+        </div>
+      </div>
+
+      <!-- Choix de couleur (nouveau participant) -->
+      <div id="color-section">
+        <p style="font-size:14px;color:#607D8B;margin-bottom:8px;">Choisissez votre couleur sur la carte :</p>
+        <div class="color-palette" id="color-palette"></div>
+        <p id="color-error" style="color:#C62828;font-size:13px;margin-top:8px;display:none;"></p>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:20px;">
+        <button class="btn btn-ghost" onclick="goStep1()">← Retour</button>
+        <button class="btn btn-primary" id="join-btn" style="flex:1;" onclick="joinDist()" disabled>Rejoindre</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ UI DE SUIVI ════════════════════════════════════ -->
+<div class="tracking-layout" id="tracking-ui" style="display:none;">
+  <div class="map-area">
+    <div id="user-map"></div>
+
+    <!-- Bandeau statut -->
+    <div class="ribbon" id="ribbon">
+      <div class="ribbon-color" id="ribbon-color"></div>
+      <div class="ribbon-name"   id="ribbon-name">Chargement…</div>
+      <div class="ribbon-status" id="ribbon-status">Actif</div>
+    </div>
+
+    <!-- Indicateur GPS -->
+    <div class="gps-indicator" id="gps-indicator">
+      <div class="gps-dot off" id="gps-dot"></div>
+      <span id="gps-label">GPS…</span>
+    </div>
+
+    <!-- Toggle autres utilisateurs -->
+    <button class="others-toggle" id="others-btn" onclick="toggleOthers()">👁️ Autres</button>
+  </div>
+
+  <!-- Barre d'action -->
+  <div class="action-bar">
+    <div class="stat-block">
+      <div class="stat-val-big" id="stat-dist">0 m</div>
+      <div class="stat-lbl-small">Distance</div>
+    </div>
+    <button class="action-btn running" id="action-btn" onclick="handleActionBtn()" aria-label="Pause / Reprendre">⏸</button>
+    <div class="stat-block">
+      <div class="stat-val-big" id="stat-time">0:00</div>
+      <div class="stat-lbl-small">Durée</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MENU DE PAUSE ══════════════════════════════════ -->
+<div class="pause-menu-overlay" id="pause-menu" style="display:none;">
+  <div class="pause-menu">
+    <h3>⏸ Distribution en pause</h3>
+    <p>Les rues déjà parcourues sont sauvegardées. Vous pouvez faire une pause et reprendre quand vous êtes prêt.</p>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button class="btn btn-success btn-lg w-full" onclick="resumeTracking()">▶ Reprendre la distribution</button>
+      <button class="btn btn-danger  btn-lg w-full" onclick="finishTracking()">✓ Terminer pour aujourd'hui</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="colors.js"></script>
+<script>
+const params   = new URLSearchParams(location.search);
+const DIST_ID  = params.get('id');
+const STORE_KEY = `dt-${DIST_ID}`;
+
+let distData = null, session = null, socket = null;
+let myStatus = 'running', mySegment = 0, showOthers = true;
+let map = null, myPolylines = {}, myMarker = null;
+let otherPolylines = {}, otherMarkers = {};
+let totalDist = 0, lastPt = null;
+let sessionStart = null, pausedMs = 0, pauseStartTs = null, timerInterval = null;
+let selectedColor = null, isExistingSession = false;
+
+// ═══ Chargement distribution ════════════════════════
+async function init() {
+  if (!DIST_ID) { showError('Lien invalide — ID manquant.'); return; }
+  const r = await fetch(`/api/distributions/${DIST_ID}`);
+  if (!r.ok) { showError('Distribution introuvable.'); return; }
+  distData = await r.json();
+  document.title = distData.name;
+  document.getElementById('join-dist-name').textContent = distData.name;
+  document.getElementById('join-subtitle').textContent  = distData.description || 'Distribution de courriers';
+
+  if (distData.status === 'closed') { showClosed(); return; }
+
+  const saved = localStorage.getItem(STORE_KEY);
+  if (saved) {
+    try { session = JSON.parse(saved); startTracking(); return; } catch(e) {}
+  }
+
+  buildPalette(distData.users.map(u => u.color));
+}
+
+// ═══ Étape 1 : Nom ══════════════════════════════════
+function goStep2() {
+  const name = document.getElementById('name-input').value.trim();
+  const err = document.getElementById('step1-error');
+  if (!name) { err.textContent = 'Veuillez entrer votre nom ou équipe.'; err.style.display = ''; return; }
+  err.style.display = 'none';
+
+  const existing = distData.users.find(u => u.name.toLowerCase() === name.toLowerCase());
+  if (existing) {
+    isExistingSession = true;
+    session = { userId: existing.id, token: null, color: existing.color, name: existing.name };
+    document.getElementById('existing-name-text').textContent = existing.name;
+    document.getElementById('existing-banner').style.display = 'flex';
+    document.getElementById('color-section').style.display   = 'none';
+    document.getElementById('join-btn').disabled = false;
+    document.getElementById('join-btn').textContent = 'Reprendre';
+  } else {
+    isExistingSession = false;
+    document.getElementById('existing-banner').style.display = 'none';
+    document.getElementById('color-section').style.display   = '';
+    document.getElementById('join-btn').disabled = !selectedColor;
+    document.getElementById('join-btn').textContent = 'Rejoindre';
+  }
+  document.getElementById('step-1').style.display = 'none';
+  document.getElementById('step-2').style.display = '';
+}
+
+function goStep1() {
+  document.getElementById('step-2').style.display = 'none';
+  document.getElementById('step-1').style.display = '';
+}
+
+// ═══ Palette de couleurs ════════════════════════════
+function buildPalette(takenColors) {
+  document.getElementById('color-palette').innerHTML = COLOR_PALETTE.map((c, i) => {
+    const taken = takenColors.includes(c.hex);
+    return `
+    <div class="cp-item" onclick="${taken ? '' : `pickColor('${c.hex}',${i})`}">
+      <div class="cp-swatch ${taken ? 'taken' : ''}" id="sw-${i}" style="background:${c.hex};" title="${taken ? 'Déjà pris' : c.name}"></div>
+      <div class="cp-label">${c.name}</div>
+    </div>`;
+  }).join('');
+}
+
+function pickColor(hex, idx) {
+  selectedColor = hex;
+  document.querySelectorAll('.cp-swatch').forEach(s => s.classList.remove('selected'));
+  document.getElementById(`sw-${idx}`).classList.add('selected');
+  document.getElementById('join-btn').disabled = false;
+  document.getElementById('color-error').style.display = 'none';
+}
+
+// ═══ Rejoindre ══════════════════════════════════════
+async function joinDist() {
+  const name = document.getElementById('name-input').value.trim();
+  const btn  = document.getElementById('join-btn');
+  btn.disabled = true; btn.textContent = 'Connexion…';
+
+  const r = await fetch(`/api/distributions/${DIST_ID}/join`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, color: selectedColor || (session && session.color) })
+  });
+  const data = await r.json();
+
+  if (!r.ok) {
+    btn.disabled = false; btn.textContent = isExistingSession ? 'Reprendre' : 'Rejoindre';
+    const errEl = document.getElementById('color-error');
+    errEl.textContent = data.error || 'Erreur de connexion';
+    errEl.style.display = '';
+    return;
+  }
+
+  session = { userId: data.userId, token: data.token, color: data.color, name: data.name };
+  localStorage.setItem(STORE_KEY, JSON.stringify(session));
+  startTracking();
+}
+
+// ═══ Démarrage du suivi ═════════════════════════════
+async function startTracking() {
+  document.getElementById('join-overlay').style.display  = 'none';
+  document.getElementById('tracking-ui').style.display = 'flex';
+
+  // Init carte
+  map = L.map('user-map', { zoomControl: false }).setView([46.2, 2.2], 14);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap', maxZoom: 19
+  }).addTo(map);
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+  // Bandeau couleur
+  document.getElementById('ribbon-color').style.background = session.color;
+  document.getElementById('ribbon-name').textContent = session.name;
+  document.getElementById('ribbon-name').style.borderLeft = `4px solid ${session.color}`;
+  document.getElementById('ribbon-name').style.paddingLeft = '8px';
+
+  sessionStart = Date.now();
+  timerInterval = setInterval(updateTimer, 1000);
+
+  // Charger tracés existants
+  await loadExistingRoutes();
+
+  // Socket
+  connectSocket();
+
+  // GPS
+  startGPS();
+}
+
+// ═══ Tracés existants ═══════════════════════════════
+async function loadExistingRoutes() {
+  const r = await fetch(`/api/distributions/${DIST_ID}/routes`);
+  if (!r.ok) return;
+  const routes = await r.json();
+
+  routes.forEach(route => {
+    if (route.userId === session.userId) {
+      route.segments.forEach(seg => {
+        const poly = getMyPoly(seg.seg);
+        seg.points.forEach(p => {
+          poly.addLatLng([p.lat, p.lon]);
+          if (lastPt) totalDist += haversine(lastPt[0], lastPt[1], p.lat, p.lon) * 1000;
+          lastPt = [p.lat, p.lon];
+        });
+      });
+      if (route.segments.length) mySegment = Math.max(...route.segments.map(s => s.seg), 0);
+    } else {
+      if (!otherPolylines[route.userId]) otherPolylines[route.userId] = {};
+      route.segments.forEach(seg => {
+        if (!otherPolylines[route.userId][seg.seg]) {
+          otherPolylines[route.userId][seg.seg] = L.polyline([], { color: route.color, weight: 4, opacity: .6 }).addTo(map);
+        }
+        seg.points.forEach(p => otherPolylines[route.userId][seg.seg].addLatLng([p.lat, p.lon]));
+        if (seg.points.length) {
+          const lp = seg.points[seg.points.length - 1];
+          updateOtherMarker(route.userId, route.color, route.name, lp.lat, lp.lon);
+        }
+      });
+    }
+  });
+  updateStatDist();
+}
+
+// ═══ GPS ════════════════════════════════════════════
+let watchId = null, gpsOk = false;
+
+function startGPS() {
+  if (!('geolocation' in navigator)) {
+    setGpsStatus('off', 'Non dispo');
+    return;
+  }
+  setGpsStatus('weak', 'Recherche…');
+  watchId = navigator.geolocation.watchPosition(onGPS, onGPSErr, {
+    enableHighAccuracy: true, maximumAge: 4000, timeout: 15000
+  });
+}
+
+function onGPS(pos) {
+  const { latitude: lat, longitude: lon, accuracy: acc } = pos.coords;
+  setGpsStatus(acc < 30 ? 'good' : 'weak', `±${Math.round(acc)} m`);
+
+  if (myStatus !== 'running') return;
+  if (acc > 80) return;
+
+  const poly = getMyPoly(mySegment);
+  poly.addLatLng([lat, lon]);
+
+  if (!myMarker) {
+    myMarker = L.marker([lat, lon], { icon: myIcon() }).addTo(map);
+    map.setView([lat, lon], 16);
+  } else {
+    myMarker.setLatLng([lat, lon]);
+    map.panTo([lat, lon], { animate: true, duration: 0.6 });
+  }
+
+  if (lastPt) totalDist += haversine(lastPt[0], lastPt[1], lat, lon) * 1000;
+  lastPt = [lat, lon];
+  updateStatDist();
+
+  socket?.emit('location', { userId: session.userId, token: session.token, lat, lon, ts: Date.now() });
+}
+
+function onGPSErr(err) { setGpsStatus('weak', 'Signal faible'); }
+
+function setGpsStatus(state, label) {
+  const dot = document.getElementById('gps-dot');
+  dot.className = `gps-dot ${state}`;
+  document.getElementById('gps-label').textContent = label;
+}
+
+function myIcon() {
+  return L.divIcon({
+    className: '',
+    iconSize: [22, 22], iconAnchor: [11, 11],
+    html: `<div style="width:22px;height:22px;border-radius:50%;background:${session.color};border:3px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,.4);"></div>`
+  });
+}
+
+// ═══ Polylines ══════════════════════════════════════
+function getMyPoly(seg) {
+  if (!myPolylines[seg]) {
+    myPolylines[seg] = L.polyline([], { color: session.color, weight: 6, opacity: .9 }).addTo(map);
+  }
+  return myPolylines[seg];
+}
+
+function updateOtherMarker(userId, color, name, lat, lon) {
+  if (!otherMarkers[userId]) {
+    const icon = L.divIcon({
+      className: '', iconSize: [18, 18], iconAnchor: [9, 9],
+      html: `<div style="width:18px;height:18px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.3);opacity:.8;"></div>`
+    });
+    otherMarkers[userId] = L.marker([lat, lon], { icon }).bindTooltip(name, {direction:'top'}).addTo(map);
+  } else {
+    otherMarkers[userId].setLatLng([lat, lon]);
+  }
+}
+
+// ═══ Pause / Reprendre / Terminer ════════════════════
+function handleActionBtn() {
+  if (myStatus === 'done') return;
+  if (myStatus === 'running') {
+    myStatus = 'paused';
+    pauseStartTs = Date.now();
+    setActionBtn('paused');
+    document.getElementById('ribbon-status').textContent = '⏸ En pause';
+    socket?.emit('pause', { userId: session.userId, token: session.token });
+    document.getElementById('pause-menu').style.display = 'flex';
+  }
+}
+
+function resumeTracking() {
+  if (pauseStartTs) pausedMs += Date.now() - pauseStartTs;
+  pauseStartTs = null;
+  mySegment++;
+  myStatus = 'running';
+  setActionBtn('running');
+  document.getElementById('ribbon-status').textContent = 'Actif';
+  document.getElementById('pause-menu').style.display  = 'none';
+  socket?.emit('resume', { userId: session.userId, token: session.token });
+}
+
+function finishTracking() {
+  if (pauseStartTs) pausedMs += Date.now() - pauseStartTs;
+  myStatus = 'done';
+  setActionBtn('done');
+  document.getElementById('ribbon-status').textContent = '✓ Terminé';
+  document.getElementById('pause-menu').style.display  = 'none';
+  if (watchId) navigator.geolocation.clearWatch(watchId);
+  socket?.emit('done', { userId: session.userId, token: session.token });
+  localStorage.removeItem(STORE_KEY);
+
+  setTimeout(() => alert('Distribution terminée ! Merci pour votre travail. 🎉'), 200);
+}
+
+function setActionBtn(state) {
+  const btn = document.getElementById('action-btn');
+  btn.className = `action-btn ${state}`;
+  btn.textContent = state === 'running' ? '⏸' : state === 'paused' ? '▶' : '✓';
+  btn.setAttribute('aria-label', state === 'running' ? 'Mettre en pause' : state === 'paused' ? 'Reprendre' : 'Terminé');
+}
+
+// ═══ Toggle autres utilisateurs ════════════════════
+function toggleOthers() {
+  showOthers = !showOthers;
+  document.getElementById('others-btn').textContent = showOthers ? '👁️ Autres' : '🚫 Autres';
+  Object.values(otherPolylines).forEach(segs =>
+    Object.values(segs).forEach(p => showOthers ? p.addTo(map) : map.removeLayer(p))
+  );
+  Object.values(otherMarkers).forEach(m => showOthers ? m.addTo(map) : map.removeLayer(m));
+}
+
+// ═══ Statistiques ═══════════════════════════════════
+function updateStatDist() {
+  const el = document.getElementById('stat-dist');
+  el.textContent = totalDist < 1000 ? totalDist.toFixed(0) + ' m' : (totalDist / 1000).toFixed(2) + ' km';
+}
+
+function updateTimer() {
+  if (!sessionStart) return;
+  let elapsed = Date.now() - sessionStart - pausedMs;
+  if (pauseStartTs) elapsed -= (Date.now() - pauseStartTs);
+  if (elapsed < 0) elapsed = 0;
+  const h = Math.floor(elapsed/3600000), m = Math.floor((elapsed%3600000)/60000), s = Math.floor((elapsed%60000)/1000);
+  document.getElementById('stat-time').textContent = h > 0
+    ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+    : `${m}:${String(s).padStart(2,'0')}`;
+}
+
+// ═══ Socket.io ══════════════════════════════════════
+function connectSocket() {
+  socket = io();
+  socket.emit('join', { distributionId: DIST_ID });
+
+  socket.on('location', ({ userId, lat, lon, segment }) => {
+    if (userId === session.userId) return;
+    const u = distData.users.find(u => u.id === userId);
+    const color = u?.color || '#999', name = u?.name || '?';
+    if (!otherPolylines[userId]) otherPolylines[userId] = {};
+    if (!otherPolylines[userId][segment]) {
+      const p = L.polyline([], { color, weight: 4, opacity: .6 });
+      if (showOthers) p.addTo(map);
+      otherPolylines[userId][segment] = p;
+    }
+    otherPolylines[userId][segment].addLatLng([lat, lon]);
+    if (showOthers) updateOtherMarker(userId, color, name, lat, lon);
+  });
+
+  socket.on('user-joined', u => { distData.users.push(u); });
+  socket.on('distribution-closed', showClosed);
+}
+
+// ═══ Haversine ══════════════════════════════════════
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371, d = Math.PI/180;
+  const a = Math.sin((lat2-lat1)*d/2)**2 + Math.cos(lat1*d)*Math.cos(lat2*d)*Math.sin((lon2-lon1)*d/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// ═══ Utilitaires ════════════════════════════════════
+function showClosed() {
+  if (watchId) navigator.geolocation.clearWatch(watchId);
+  clearInterval(timerInterval);
+  document.getElementById('closed-screen').style.display = 'flex';
+  document.getElementById('join-overlay').style.display  = 'none';
+  document.getElementById('tracking-ui').style.display   = 'none';
+}
+
+function showError(msg) {
+  document.getElementById('join-dist-name').textContent = 'Erreur';
+  document.getElementById('join-subtitle').textContent  = msg;
+}
+
+// ═══ Lancement ══════════════════════════════════════
+init();
+</script>
+</body>
+</html>

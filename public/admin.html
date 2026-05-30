@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1565C0">
+  <title>Admin – Distribution Tracker</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* Mobile back button (visible uniquement sur mobile) */
+    #mobile-back {
+      display: none; align-items: center; gap: 6px;
+      background: none; border: none; color: #fff; font-size: 15px;
+      font-weight: 600; cursor: pointer; padding: 4px 8px 4px 0; min-height: 44px;
+    }
+    @media (max-width: 767px) {
+      #mobile-back { display: flex; }
+      #header-title { font-size: 15px; }
+    }
+    /* Barre flottante "Créer" en mobile quand la liste est affichée */
+    #mobile-fab {
+      display: none; position: absolute; bottom: 20px; right: 20px;
+      z-index: 20; border-radius: 28px; padding: 14px 20px; gap: 8px;
+      box-shadow: 0 4px 20px rgba(21,101,192,.4); font-size: 15px;
+    }
+    @media (max-width: 767px) { #mobile-fab { display: flex; } }
+
+    .login-center { background: linear-gradient(135deg,#1565C0,#0D47A1); }
+  </style>
+</head>
+<body>
+
+<!-- ══ LOGIN ══════════════════════════════════════════ -->
+<div id="login-screen" class="login-center">
+  <div class="card" style="width:100%;max-width:380px;text-align:center;padding:36px 28px;">
+    <div style="font-size:52px;margin-bottom:12px;">🗺️</div>
+    <h1 style="font-size:21px;margin-bottom:4px;">Distribution Tracker</h1>
+    <p style="color:#666;margin-bottom:28px;font-size:14px;">Panneau d'administration</p>
+    <form id="login-form">
+      <div class="form-group" style="text-align:left;">
+        <label>Mot de passe</label>
+        <input type="password" id="pwd-input" placeholder="Mot de passe" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn btn-primary w-full" style="margin-top:8px;">Connexion</button>
+      <p id="login-err" class="error-msg hidden" aria-live="polite"></p>
+    </form>
+  </div>
+</div>
+
+<!-- ══ ADMIN UI ════════════════════════════════════════ -->
+<div id="admin-screen" class="admin-layout hidden">
+
+  <header class="admin-header">
+    <!-- Bouton retour mobile (visible uniquement quand en vue détail) -->
+    <button id="mobile-back" onclick="mobileBack()" aria-label="Retour à la liste" style="display:none;">
+      ← <span>Retour</span>
+    </button>
+    <h1 id="header-title">🗺️ Distribution Tracker</h1>
+    <div class="admin-header-right">
+      <button class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);" onclick="logout()">
+        Déconnexion
+      </button>
+    </div>
+  </header>
+
+  <div class="admin-body" id="admin-body">
+
+    <!-- ── Sidebar : liste des distributions ── -->
+    <aside class="admin-sidebar" id="admin-sidebar">
+      <div class="sidebar-header">
+        <h2>Distributions</h2>
+        <button class="btn btn-primary btn-sm" onclick="showCreatePanel()">+ Créer</button>
+      </div>
+      <div class="sidebar-list" id="sidebar-list">
+        <p style="padding:16px;color:#999;font-size:13px;">Chargement…</p>
+      </div>
+      <!-- FAB mobile -->
+      <button id="mobile-fab" class="btn btn-primary" onclick="showCreatePanel()">+ Nouvelle distribution</button>
+    </aside>
+
+    <!-- ── Contenu principal ── -->
+    <main class="admin-content" id="admin-content">
+
+      <!-- Bienvenue (desktop) -->
+      <div id="panel-welcome" class="flex-center" style="flex-direction:column;height:100%;gap:14px;color:#999;text-align:center;padding:24px;">
+        <div style="font-size:60px;">🗺️</div>
+        <p style="font-size:15px;max-width:320px;">Sélectionnez une distribution dans la liste ou créez-en une nouvelle.</p>
+        <button class="btn btn-primary" onclick="showCreatePanel()">+ Nouvelle distribution</button>
+      </div>
+
+      <!-- Formulaire de création -->
+      <div id="panel-create" class="hidden">
+        <h2 class="panel-title">Nouvelle distribution</h2>
+        <div class="card" style="max-width:520px;">
+          <form id="create-form">
+            <div class="form-group">
+              <label>Nom de la distribution *</label>
+              <input type="text" id="dist-name" placeholder="ex : Journal du Lundi" required>
+            </div>
+            <div class="form-group">
+              <label>Description (optionnel)</label>
+              <textarea id="dist-desc" placeholder="Secteur, notes…"></textarea>
+            </div>
+            <div class="flex gap-8 mt-16" style="justify-content:flex-end;">
+              <button type="button" class="btn btn-ghost" onclick="cancelCreate()">Annuler</button>
+              <button type="submit" class="btn btn-primary" id="create-btn">Créer</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Détail d'une distribution -->
+      <div id="panel-detail" class="hidden">
+        <div id="detail-content"></div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ══ MODALE QR CODE ═════════════════════════════════ -->
+<div id="qr-modal" class="overlay hidden" onclick="closeQrModal()" role="dialog" aria-modal="true" aria-label="QR Code">
+  <div class="modal" onclick="event.stopPropagation()" style="text-align:center;max-width:380px;">
+    <h3>QR Code — Distribution</h3>
+    <img id="qr-img" src="" alt="QR Code" style="max-width:220px;display:block;margin:16px auto;border-radius:8px;border:2px solid var(--border);">
+    <p id="qr-url-text" style="font-size:12px;color:#607D8B;word-break:break-all;margin-bottom:16px;"></p>
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-sm" onclick="copyQrUrl()">📋 Copier</button>
+      <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨️ Imprimer</button>
+      <button class="btn btn-primary btn-sm" onclick="closeQrModal()">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODALE CONFIRMATION ════════════════════════════ -->
+<div id="confirm-modal" class="overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal">
+    <h3 id="confirm-title">Confirmation</h3>
+    <p id="confirm-msg" style="color:#666;margin:12px 0 0;font-size:14px;line-height:1.5;"></p>
+    <div class="flex gap-8 mt-24" style="justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="closeConfirm()">Annuler</button>
+      <button class="btn btn-danger" id="confirm-ok-btn">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let adminPwd = '';
+let currentDistId = null;
+let distributions = [];
+const isMobile = () => window.innerWidth <= 767;
+
+// ═══ Auth ════════════════════════════════════════════
+document.getElementById('login-form').onsubmit = async e => {
+  e.preventDefault();
+  const btn = e.target.querySelector('[type=submit]');
+  btn.disabled = true; btn.textContent = 'Connexion…';
+  const r = await fetch('/api/admin/login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: document.getElementById('pwd-input').value })
+  });
+  btn.disabled = false; btn.textContent = 'Connexion';
+  if (r.ok) {
+    adminPwd = document.getElementById('pwd-input').value;
+    sessionStorage.setItem('adminPwd', adminPwd);
+    showAdmin();
+  } else {
+    const el = document.getElementById('login-err');
+    el.textContent = 'Mot de passe incorrect';
+    el.classList.remove('hidden');
+    document.getElementById('pwd-input').select();
+  }
+};
+
+function logout() {
+  adminPwd = ''; sessionStorage.removeItem('adminPwd');
+  document.getElementById('admin-screen').classList.add('hidden');
+  document.getElementById('login-screen').classList.remove('hidden');
+}
+
+async function showAdmin() {
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('admin-screen').classList.remove('hidden');
+  await loadDistributions();
+}
+
+// ═══ Distributions ══════════════════════════════════
+async function loadDistributions() {
+  const r = await adminFetch('/api/distributions');
+  if (!r.ok) return;
+  distributions = await r.json();
+  renderSidebar();
+  if (currentDistId) {
+    const d = distributions.find(d => d.id === currentDistId);
+    if (d) selectDist(d.id);
+  }
+}
+
+function renderSidebar() {
+  const el = document.getElementById('sidebar-list');
+  if (!distributions.length) {
+    el.innerHTML = '<p style="padding:20px 16px;color:#999;font-size:14px;text-align:center;">Aucune distribution.<br>Créez-en une !</p>';
+    return;
+  }
+  el.innerHTML = distributions.map(d => `
+    <div class="sidebar-item ${d.id === currentDistId ? 'active' : ''}" onclick="selectDist('${d.id}')">
+      <div class="sidebar-item-name">${esc(d.name)}</div>
+      <div class="sidebar-item-meta">
+        <span class="badge badge-${d.status === 'active' ? 'open' : 'closed'}">${d.status === 'active' ? 'Active' : 'Clôturée'}</span>
+        <span>${d.user_count} participant${d.user_count > 1 ? 's' : ''}</span>
+        <span>${fmtDate(d.created_at)}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function selectDist(id) {
+  currentDistId = id;
+  renderSidebar();
+  // Affichage du bouton retour mobile
+  setMobileDetailOpen(true);
+
+  hideAll();
+  document.getElementById('panel-detail').classList.remove('hidden');
+  document.getElementById('detail-content').innerHTML = '<p style="color:#999;padding:20px;text-align:center;">Chargement…</p>';
+
+  const r = await adminFetch(`/api/distributions/${id}`);
+  if (!r.ok) return;
+  renderDetail(await r.json());
+}
+
+function renderDetail(d) {
+  document.getElementById('detail-content').innerHTML = `
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+      <div style="min-width:0;flex:1;">
+        <h2 class="panel-title" style="margin-bottom:3px;word-break:break-word;">${esc(d.name)}</h2>
+        ${d.description ? `<p class="text-muted text-sm">${esc(d.description)}</p>` : ''}
+      </div>
+      <span class="badge badge-${d.status === 'active' ? 'open' : 'closed'}" style="font-size:12px;padding:5px 12px;flex-shrink:0;">
+        ${d.status === 'active' ? '● Active' : '✓ Clôturée'}
+      </span>
+    </div>
+
+    <div class="panel-actions">
+      <button class="btn btn-primary btn-sm" onclick="showQR('${d.id}')">🔲 QR Code</button>
+      <button class="btn btn-ghost  btn-sm" onclick="openTracking('${d.id}')">🗺️ Suivi live</button>
+      <button class="btn btn-ghost  btn-sm" onclick="openReport('${d.id}')">📊 Rapport</button>
+      ${d.status === 'active' ? `<button class="btn btn-warning btn-sm" onclick="confirmClose('${d.id}')">🔒 Clôturer</button>` : ''}
+      <button class="btn btn-danger btn-sm" onclick="confirmDelete('${d.id}')">🗑️ Supprimer</button>
+    </div>
+
+    <div class="dist-info-grid">
+      <div class="info-box"><div class="info-box-label">Créée le</div><div class="info-box-value" style="font-size:14px;">${fmtDate(d.created_at, true)}</div></div>
+      <div class="info-box"><div class="info-box-label">Participants</div><div class="info-box-value">${d.users ? d.users.length : 0}</div></div>
+      ${d.closed_at ? `<div class="info-box"><div class="info-box-label">Clôturée le</div><div class="info-box-value" style="font-size:14px;">${fmtDate(d.closed_at, true)}</div></div>` : ''}
+    </div>
+
+    <h3 style="font-size:14px;font-weight:700;margin-bottom:10px;">Participants</h3>
+    ${d.users && d.users.length ? `
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <table class="users-table">
+        <thead><tr><th>Nom</th><th>Statut</th><th>Rejoint</th><th>Vu</th></tr></thead>
+        <tbody>${d.users.map(u => `
+          <tr>
+            <td><div class="user-name-cell"><span class="color-dot" style="background:${u.color};"></span>${esc(u.name)}</div></td>
+            <td><span class="badge badge-${u.status}">${statusLabel(u.status)}</span></td>
+            <td style="white-space:nowrap;">${fmtDate(u.joined_at, true)}</td>
+            <td style="white-space:nowrap;">${u.last_seen ? fmtDate(u.last_seen, true) : '—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>` : `<p class="text-muted text-sm">Aucun participant. Partagez le QR Code ou le lien pour que les utilisateurs rejoignent.</p>`}
+  `;
+}
+
+// ═══ Création ══════════════════════════════════════
+document.getElementById('create-form').onsubmit = async e => {
+  e.preventDefault();
+  const btn = document.getElementById('create-btn');
+  btn.disabled = true; btn.textContent = 'Création…';
+  const r = await adminFetch('/api/distributions', {
+    method: 'POST',
+    body: JSON.stringify({ name: document.getElementById('dist-name').value, description: document.getElementById('dist-desc').value })
+  });
+  btn.disabled = false; btn.textContent = 'Créer';
+  if (!r.ok) { alert('Erreur lors de la création'); return; }
+  const d = await r.json();
+  document.getElementById('dist-name').value = '';
+  document.getElementById('dist-desc').value = '';
+  await loadDistributions();
+  await selectDist(d.id);
+  showQR(d.id);
+};
+
+function cancelCreate() {
+  if (currentDistId) { hideAll(); document.getElementById('panel-detail').classList.remove('hidden'); }
+  else { showWelcome(); }
+}
+
+// ═══ QR Code ═══════════════════════════════════════
+let qrUrl = '';
+async function showQR(id) {
+  const r = await adminFetch(`/api/distributions/${id}/qr`);
+  if (!r.ok) return;
+  const { qr, url } = await r.json();
+  qrUrl = url;
+  document.getElementById('qr-img').src = qr;
+  document.getElementById('qr-url-text').textContent = url;
+  document.getElementById('qr-modal').classList.remove('hidden');
+}
+function closeQrModal()  { document.getElementById('qr-modal').classList.add('hidden'); }
+function copyQrUrl() {
+  navigator.clipboard.writeText(qrUrl).then(() => {
+    const btn = event.target;
+    btn.textContent = '✓ Copié !';
+    setTimeout(() => btn.textContent = '📋 Copier', 2000);
+  });
+}
+
+// ═══ Ouvrir pages ══════════════════════════════════
+function openTracking(id) { window.open(`track.html?id=${id}&pwd=${encodeURIComponent(adminPwd)}`, '_blank'); }
+function openReport(id)   { window.open(`report.html?id=${id}&pwd=${encodeURIComponent(adminPwd)}`, '_blank'); }
+
+// ═══ Clôturer ══════════════════════════════════════
+function confirmClose(id) {
+  showConfirm('Clôturer la distribution', 'Les utilisateurs ne pourront plus envoyer de positions. Voulez-vous confirmer ?', async () => {
+    const r = await adminFetch(`/api/distributions/${id}/close`, { method: 'POST' });
+    if (r.ok) { closeConfirm(); await loadDistributions(); await selectDist(id); }
+  });
+}
+
+// ═══ Supprimer ═════════════════════════════════════
+function confirmDelete(id) {
+  showConfirm('Supprimer la distribution', 'Toutes les données (routes, participants) seront définitivement supprimées. Cette action est irréversible.', async () => {
+    const r = await adminFetch(`/api/distributions/${id}`, { method: 'DELETE' });
+    if (r.ok) { currentDistId = null; closeConfirm(); setMobileDetailOpen(false); await loadDistributions(); showWelcome(); }
+  });
+}
+
+// ═══ Navigation mobile ═════════════════════════════
+function setMobileDetailOpen(open) {
+  const body = document.getElementById('admin-body');
+  const backBtn = document.getElementById('mobile-back');
+  if (open) {
+    body.classList.add('detail-open');
+    backBtn.style.display = 'flex';
+  } else {
+    body.classList.remove('detail-open');
+    backBtn.style.display = 'none';
+  }
+}
+
+function mobileBack() {
+  currentDistId = null;
+  setMobileDetailOpen(false);
+  renderSidebar();
+  showWelcome();
+}
+
+// ═══ Panels ════════════════════════════════════════
+function hideAll() {
+  ['panel-welcome', 'panel-create', 'panel-detail'].forEach(id => document.getElementById(id).classList.add('hidden'));
+}
+function showWelcome()     { hideAll(); document.getElementById('panel-welcome').classList.remove('hidden'); }
+function showCreatePanel() {
+  setMobileDetailOpen(true);
+  hideAll();
+  document.getElementById('panel-create').classList.remove('hidden');
+  setTimeout(() => document.getElementById('dist-name').focus(), 100);
+}
+
+// ═══ Modale de confirmation ════════════════════════
+function showConfirm(title, msg, cb) {
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-msg').textContent = msg;
+  document.getElementById('confirm-ok-btn').onclick = cb;
+  document.getElementById('confirm-modal').classList.remove('hidden');
+}
+function closeConfirm() { document.getElementById('confirm-modal').classList.add('hidden'); }
+
+// Fermer modales avec Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeQrModal(); closeConfirm(); }
+});
+
+// ═══ Helpers ═══════════════════════════════════════
+async function adminFetch(url, opts = {}) {
+  return fetch(url, {
+    ...opts, headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd, ...(opts.headers || {}) }
+  });
+}
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtDate(ts, withTime = false) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  const date = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return withTime ? date + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : date;
+}
+function statusLabel(s) { return { active: 'Actif', paused: 'En pause', done: 'Terminé' }[s] || s; }
+
+// ═══ Init ══════════════════════════════════════════
+window.addEventListener('load', () => {
+  const saved = sessionStorage.getItem('adminPwd');
+  if (saved) { adminPwd = saved; showAdmin(); }
+});
+</script>
+</body>
+</html>

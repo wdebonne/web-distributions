@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1565C0">
+  <title>Rapport</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    body { overflow: hidden; }
+
+    .report-header-left  { display:flex;align-items:center;gap:8px;flex:1;min-width:0; }
+    .report-header-right { display:flex;gap:8px;flex-shrink:0; }
+    .report-title { font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+    .report-sub   { font-size:11px;opacity:.75; }
+
+    /* Onglets mobile */
+    .mobile-tabs {
+      display: none; background: var(--card); border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .mobile-tab {
+      flex: 1; padding: 12px; border: none; background: none; font-size: 14px;
+      font-weight: 600; cursor: pointer; border-bottom: 3px solid transparent;
+      color: var(--text-light); transition: all .15s;
+    }
+    .mobile-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+    @media (max-width: 767px) {
+      .mobile-tabs { display: flex; }
+      .report-body { flex-direction: column !important; }
+      .report-sidebar { width: 100% !important; height: auto !important; border-bottom: none !important; }
+      .report-map-area { flex: 1; min-height: 0; }
+
+      /* Onglet stats vs carte */
+      .report-sidebar { display: none; }
+      .report-sidebar.tab-active { display: flex; flex: 1; }
+      .report-map-area { display: none; }
+      .report-map-area.tab-active { display: flex; }
+    }
+
+    /* Legend flottante */
+    #map-legend {
+      position: absolute; bottom: 20px; right: 12px; z-index: 500;
+      background: rgba(255,255,255,.95); border-radius: 10px;
+      padding: 10px 14px; box-shadow: var(--shadow-lg);
+      min-width: 150px; max-width: 220px; max-height: 40vh; overflow-y: auto;
+    }
+
+    /* User sections */
+    .user-section-header { display:flex;align-items:center;gap:8px;padding:12px 14px; }
+    .user-section-body   { padding:0 14px 12px;display:grid;grid-template-columns:1fr 1fr;gap:8px; }
+
+    /* Totals */
+    .totals-section { padding:14px 16px;background:var(--primary-light);border-top:2px solid var(--primary);flex-shrink:0; }
+    .totals-grid    { display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px; }
+
+    @media print {
+      .no-print { display: none !important; }
+      body { overflow: visible; background: #fff; }
+      .report-layout { height: auto; }
+      .report-body   { flex-direction: row !important; height: 80vh; }
+      .report-sidebar { display: flex !important; width: 300px !important; }
+      .report-map-area { display: flex !important; flex: 1; }
+      .mobile-tabs { display: none !important; }
+      #map-legend { position: fixed; bottom: 20px; right: 20px; }
+    }
+  </style>
+</head>
+<body class="report-layout">
+
+<!-- ── Header ─────────────────────────────────────── -->
+<header class="report-header no-print">
+  <div class="report-header-left">
+    <a href="admin.html" style="color:#fff;text-decoration:none;font-size:20px;padding:4px;" aria-label="Retour">←</a>
+    <div style="min-width:0;">
+      <div class="report-title" id="report-dist-name">Rapport</div>
+      <div class="report-sub" id="report-dist-date"></div>
+    </div>
+  </div>
+  <div class="report-header-right">
+    <button class="btn btn-sm" style="background:#fff;color:var(--primary);" onclick="exportPDF()">📄 PDF</button>
+    <button class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;" onclick="window.print()">🖨️</button>
+  </div>
+</header>
+
+<!-- ── Onglets mobile ────────────────────────────── -->
+<div class="mobile-tabs no-print">
+  <button class="mobile-tab active" id="tab-stats" onclick="switchTab('stats')">📊 Statistiques</button>
+  <button class="mobile-tab" id="tab-map"   onclick="switchTab('map')">🗺️ Carte</button>
+</div>
+
+<!-- ── Body ──────────────────────────────────────── -->
+<div class="report-body" id="report-body">
+
+  <!-- Panneau stats -->
+  <aside class="report-sidebar tab-active" id="report-sidebar">
+    <div class="report-sidebar-header">
+      <h2 id="sidebar-dist-name">Distribution</h2>
+      <p id="sidebar-dist-date"></p>
+    </div>
+
+    <!-- Filtres (masqués sur mobile) -->
+    <div class="filter-section no-print">
+      <h4>Filtres d'affichage</h4>
+      <label class="filter-item"><input type="checkbox" id="f-distance" checked onchange="renderStats()"> Distance</label>
+      <label class="filter-item"><input type="checkbox" id="f-duration" checked onchange="renderStats()"> Durée</label>
+      <label class="filter-item"><input type="checkbox" id="f-points"         onchange="renderStats()"> Points GPS</label>
+      <label class="filter-item"><input type="checkbox" id="f-status"  checked onchange="renderStats()"> Statut</label>
+    </div>
+
+    <!-- Stats utilisateurs -->
+    <div class="stats-list" id="stats-list"></div>
+
+    <!-- Totaux -->
+    <div class="totals-section" id="totals-section"></div>
+  </aside>
+
+  <!-- Carte -->
+  <div class="report-map-area" id="report-map-area">
+    <div id="report-map" style="width:100%;height:100%;"></div>
+    <div id="map-legend">
+      <div style="font-size:10px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Légende</div>
+      <div id="legend-items"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="colors.js"></script>
+<script>
+const params    = new URLSearchParams(location.search);
+const DIST_ID   = params.get('id');
+const ADMIN_PWD = params.get('pwd');
+let reportData  = null;
+
+// ── Carte ────────────────────────────────────────────
+const map = L.map('report-map', { zoomControl: false }).setView([46.2, 2.2], 6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap', maxZoom: 19
+}).addTo(map);
+L.control.zoom({ position: 'topright' }).addTo(map);
+let allBounds = null;
+
+function drawRoutes(routes) {
+  routes.forEach(r => {
+    r.segments.forEach(seg => {
+      if (!seg.points.length) return;
+      const lls = seg.points.map(p => [p.lat, p.lon]);
+      L.polyline(lls, { color: r.color, weight: 5, opacity: .85 }).addTo(map);
+      lls.forEach(ll => {
+        const b = L.latLng(ll[0], ll[1]);
+        allBounds = allBounds ? allBounds.extend(b) : L.latLngBounds(b, b);
+      });
+    });
+
+    const firstPt = r.segments.find(s => s.points.length)?.points[0];
+    const lastSeg = [...r.segments].reverse().find(s => s.points.length);
+    const lastPt  = lastSeg?.points[lastSeg.points.length - 1];
+
+    if (firstPt) L.circleMarker([firstPt.lat, firstPt.lon], { radius: 6, color: r.color, fillColor: '#fff', fillOpacity: 1, weight: 3 }).bindTooltip(`Départ – ${r.name}`, {direction:'top'}).addTo(map);
+    if (lastPt)  L.circleMarker([lastPt.lat, lastPt.lon],   { radius: 7, color: r.color, fillColor: r.color, fillOpacity: 1, weight: 2 }).bindTooltip(r.name, {direction:'top'}).addTo(map);
+  });
+  if (allBounds?.isValid()) map.fitBounds(allBounds, { padding: [30, 30] });
+}
+
+// ── Onglets mobile ────────────────────────────────────
+function switchTab(tab) {
+  document.getElementById('tab-stats').classList.toggle('active', tab === 'stats');
+  document.getElementById('tab-map').classList.toggle('active', tab === 'map');
+  document.getElementById('report-sidebar').classList.toggle('tab-active', tab === 'stats');
+  document.getElementById('report-map-area').classList.toggle('tab-active', tab === 'map');
+  if (tab === 'map') setTimeout(() => map.invalidateSize(), 50);
+}
+
+// ── Formatters ────────────────────────────────────────
+function fmtDist(km) { return km < 1 ? (km*1000).toFixed(0)+' m' : km.toFixed(3)+' km'; }
+function fmtDur(ms)  {
+  if (!ms) return '0:00';
+  const h = Math.floor(ms/3600000), m = Math.floor((ms%3600000)/60000), s = Math.floor((ms%60000)/1000);
+  return h > 0 ? `${h}h${String(m).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`;
+}
+function fmtDate(ts, time=false) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  const dd = d.toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' });
+  return time ? dd + ' à ' + d.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' }) : dd;
+}
+function statusLabel(s) { return { active:'Actif', paused:'En pause', done:'Terminé', closed:'Clôturée' }[s] || s; }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function isChecked(id) { const el = document.getElementById(id); return el ? el.checked : true; }
+
+// ── Rendu stats ───────────────────────────────────────
+function renderStats() {
+  if (!reportData) return;
+  const showDist = isChecked('f-distance');
+  const showDur  = isChecked('f-duration');
+  const showPts  = isChecked('f-points');
+  const showStat = isChecked('f-status');
+
+  document.getElementById('stats-list').innerHTML = reportData.users.map(u => {
+    const boxes = [];
+    if (showDist) boxes.push(`<div class="stat-box"><div class="stat-box-label">Distance</div><div class="stat-box-val">${fmtDist(u.distance)}</div></div>`);
+    if (showDur)  boxes.push(`<div class="stat-box"><div class="stat-box-label">Durée</div><div class="stat-box-val">${fmtDur(u.duration)}</div></div>`);
+    if (showPts)  boxes.push(`<div class="stat-box"><div class="stat-box-label">Points GPS</div><div class="stat-box-val">${u.pointCount}</div></div>`);
+    if (showStat) boxes.push(`<div class="stat-box"><div class="stat-box-label">Statut</div><div class="stat-box-val" style="font-size:14px;">${statusLabel(u.status)}</div></div>`);
+    return `
+    <div class="user-section">
+      <div class="user-section-header">
+        <span class="color-dot" style="background:${u.color};width:14px;height:14px;border-radius:50%;flex-shrink:0;"></span>
+        <span class="user-section-name">${esc(u.name)}</span>
+        <span class="badge badge-${u.status}" style="font-size:11px;">${statusLabel(u.status)}</span>
+      </div>
+      ${boxes.length ? `<div class="user-section-body">${boxes.join('')}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  const totBoxes = [];
+  if (showDist) totBoxes.push(`<div class="stat-box"><div class="stat-box-label">Distance totale</div><div class="stat-box-val">${fmtDist(reportData.totalDistance)}</div></div>`);
+  if (showDur)  totBoxes.push(`<div class="stat-box"><div class="stat-box-label">Durée totale</div><div class="stat-box-val">${fmtDur(reportData.totalDuration)}</div></div>`);
+  document.getElementById('totals-section').innerHTML = `
+    <div class="totals-title">Totaux · ${reportData.users.length} participant${reportData.users.length>1?'s':''}</div>
+    <div class="totals-grid">${totBoxes.join('')}</div>`;
+
+  // Légende carte
+  document.getElementById('legend-items').innerHTML = reportData.users.map(u => `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:12px;">
+      <div style="width:22px;height:4px;border-radius:2px;background:${u.color};flex-shrink:0;"></div>
+      <span style="font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(u.name)}</span>
+      ${showDist ? `<span style="color:var(--text-light);flex-shrink:0;">${fmtDist(u.distance)}</span>` : ''}
+    </div>`).join('');
+}
+
+// ── Export PDF ────────────────────────────────────────
+async function exportPDF() {
+  if (!reportData) return;
+  const { jsPDF } = window.jspdf;
+  const showDist = isChecked('f-distance'), showDur = isChecked('f-duration');
+  const showPts  = isChecked('f-points'),   showStat = isChecked('f-status');
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const d = reportData.distribution; const W = 210; const H = 297;
+
+  // En-tête
+  doc.setFillColor(21, 101, 192); doc.rect(0, 0, W, 22, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14); doc.setFont(undefined,'bold');
+  doc.text('Rapport de distribution', 14, 9);
+  doc.setFontSize(10); doc.setFont(undefined,'normal');
+  doc.text(d.name, 14, 16);
+  doc.setFontSize(9);
+  doc.text(`Créée le ${fmtDate(d.created_at, true)}`, W-14, 9, { align:'right' });
+  if (d.closed_at) doc.text(`Clôturée le ${fmtDate(d.closed_at, true)}`, W-14, 16, { align:'right' });
+  doc.setTextColor(0, 0, 0);
+
+  // Résumé
+  let y = 30;
+  doc.setFontSize(12); doc.setFont(undefined,'bold'); doc.text('Résumé global', 14, y); y += 7;
+  doc.setFontSize(10); doc.setFont(undefined,'normal');
+  doc.setFillColor(227, 242, 253); doc.rect(14, y-3, W-28, 20, 'F');
+  if (showDist) { doc.setFont(undefined,'bold'); doc.text('Distance totale :', 18, y+2); doc.setFont(undefined,'normal'); doc.text(fmtDist(reportData.totalDistance), 65, y+2); }
+  if (showDur)  { doc.setFont(undefined,'bold'); doc.text('Durée totale :',   18, y+10); doc.setFont(undefined,'normal'); doc.text(fmtDur(reportData.totalDuration),   65, y+10); }
+  y += 26;
+
+  // Tableau
+  const cols = [{ header: 'Participant', dataKey: 'name' }];
+  if (showDist) cols.push({ header: 'Distance',  dataKey: 'distance' });
+  if (showDur)  cols.push({ header: 'Durée',     dataKey: 'duration' });
+  if (showPts)  cols.push({ header: 'Points GPS',dataKey: 'points'   });
+  if (showStat) cols.push({ header: 'Statut',    dataKey: 'status'   });
+
+  doc.autoTable({
+    startY: y, columns: cols, margin: { left: 14, right: 14 },
+    body: reportData.users.map(u => ({
+      name: u.name, distance: fmtDist(u.distance), duration: fmtDur(u.duration),
+      points: u.pointCount, status: statusLabel(u.status)
+    })),
+    styles: { fontSize: 10 },
+    headStyles: { fillColor: [21, 101, 192], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [245, 247, 250] },
+    didParseCell(data) {
+      if (data.column.dataKey === 'name' && data.section === 'body') {
+        const u = reportData.users[data.row.index];
+        if (u) { const [r,g,b] = hexToRgb(u.color); data.cell.styles.fillColor = [r+Math.round((255-r)*.85), g+Math.round((255-g)*.85), b+Math.round((255-b)*.85)]; }
+      }
+    }
+  });
+
+  // Pied de page
+  doc.setFontSize(8); doc.setTextColor(150);
+  doc.text(`Distribution Tracker · ${fmtDate(Date.now(), true)}`, 14, H-8);
+  doc.text(`${reportData.users.length} participant${reportData.users.length>1?'s':''}`, W-14, H-8, { align:'right' });
+
+  const fname = `rapport-${d.name.replace(/[^a-z0-9]/gi,'-').toLowerCase()}-${new Date().toISOString().slice(0,10)}.pdf`;
+  doc.save(fname);
+}
+
+function hexToRgb(hex) {
+  return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
+}
+
+// ── Chargement ────────────────────────────────────────
+async function loadReport() {
+  const r = await fetch(`/api/distributions/${DIST_ID}/report`, { headers: { 'x-admin-pwd': ADMIN_PWD } });
+  if (!r.ok) { alert('Impossible de charger le rapport'); return; }
+  reportData = await r.json();
+  const d = reportData.distribution;
+
+  document.getElementById('report-dist-name').textContent  = `Rapport – ${d.name}`;
+  document.getElementById('report-dist-date').textContent  = fmtDate(d.created_at, true);
+  document.getElementById('sidebar-dist-name').textContent = d.name;
+  document.getElementById('sidebar-dist-date').textContent = fmtDate(d.created_at, true);
+  document.title = `Rapport – ${d.name}`;
+
+  drawRoutes(reportData.routes);
+  renderStats();
+}
+
+loadReport();
+</script>
+</body>
+</html>

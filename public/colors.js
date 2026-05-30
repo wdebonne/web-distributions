@@ -1,0 +1,18 @@
+const COLOR_PALETTE = [
+  { name: 'Rouge',       hex: '#F44336' },
+  { name: 'Rose',        hex: '#E91E63' },
+  { name: 'Violet',      hex: '#9C27B0' },
+  { name: 'Indigo',      hex: '#3F51B5' },
+  { name: 'Bleu',        hex: '#2196F3' },
+  { name: 'Bleu ciel',   hex: '#03A9F4' },
+  { name: 'Cyan',        hex: '#00BCD4' },
+  { name: 'Teal',        hex: '#009688' },
+  { name: 'Vert',        hex: '#4CAF50' },
+  { name: 'Lime',        hex: '#8BC34A' },
+  { name: 'Ambre',       hex: '#FFC107' },
+  { name: 'Orange',      hex: '#FF9800' },
+  { name: 'Corail',      hex: '#FF5722' },
+  { name: 'Marron',      hex: '#795548' },
+  { name: 'Bordeaux',    hex: '#880E4F' },
+  { name: 'Ardoise',     hex: '#607D8B' },
+];

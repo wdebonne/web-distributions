@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  distribution-tracker:
+    build: .
+    container_name: distribution-tracker
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - distribution-data:/data
+    environment:
+      - PORT=3000
+      # URL publique de l'app (pour les QR codes) — MODIFIER selon votre configuration
+      - BASE_URL=http://localhost:3000
+      # Mot de passe admin — CHANGER en production !
+      - ADMIN_PASSWORD=admin123
+      - DATA_DIR=/data
+
+volumes:
+  distribution-data:
+    driver: local

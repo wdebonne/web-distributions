@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1565C0">
+  <title>Suivi en direct</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    body { overflow: hidden; }
+
+    /* Header compact */
+    .track-header-left  { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+    .track-header-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .live-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: rgba(255,255,255,.15); border-radius: 20px;
+      padding: 4px 10px; font-size: 12px; white-space: nowrap;
+    }
+    .track-header-title { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .track-header-sub   { font-size: 11px; opacity: .75; }
+
+    /* Sidebar desktop */
+    .track-sidebar-body { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .legend-bar:hover { background: var(--bg); cursor: default; }
+
+    /* Bouton flottant "utilisateurs" (mobile uniquement) */
+    #users-fab {
+      display: none; position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+      z-index: 500; background: var(--primary); color: #fff; border-radius: 24px;
+      padding: 11px 20px; font-size: 14px; font-weight: 700;
+      box-shadow: 0 4px 20px rgba(21,101,192,.45); border: none; cursor: pointer;
+      gap: 8px; align-items: center; white-space: nowrap;
+    }
+    @media (max-width: 767px) { #users-fab { display: flex; } }
+
+    /* Bottom sheet utilisateurs (mobile) */
+    #users-sheet {
+      display: none; position: fixed; inset: 0; z-index: 800;
+      background: rgba(0,0,0,.45);
+    }
+    #users-sheet.open { display: flex; align-items: flex-end; justify-content: center; }
+    .users-sheet-inner {
+      background: var(--card); border-radius: 20px 20px 0 0;
+      width: 100%; max-width: 560px; max-height: 70vh;
+      display: flex; flex-direction: column;
+      animation: slideUp .22s ease;
+    }
+    @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+    .sheet-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 12px auto 0; }
+    .sheet-title  { padding: 12px 16px 10px; font-weight: 700; font-size: 15px; display: flex; align-items: center; justify-content: space-between; }
+    .sheet-body   { overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: env(safe-area-inset-bottom,0); }
+
+    /* Fermer sheet en cliquant fond */
+    #users-sheet.open::before { content:''; position:absolute; inset:0; }
+    #users-sheet .users-sheet-inner { position: relative; }
+  </style>
+</head>
+<body class="track-layout">
+
+<!-- ── Header ───────────────────────────────────────── -->
+<header class="track-header no-print">
+  <div class="track-header-left">
+    <a href="admin.html" style="color:#fff;text-decoration:none;font-size:20px;padding:4px;min-width:32px;" aria-label="Retour">←</a>
+    <div style="min-width:0;">
+      <div class="track-header-title" id="dist-name-header">Distribution</div>
+      <div class="track-header-sub" id="dist-status-header">Chargement…</div>
+    </div>
+  </div>
+  <div class="track-header-right">
+    <span class="live-pill no-print"><span class="live-dot"></span>Live</span>
+    <button class="btn btn-sm no-print" style="background:rgba(255,255,255,.15);color:#fff;" onclick="window.print()">🖨️</button>
+    <button class="btn btn-sm no-print" id="close-btn" onclick="closeDistribution()"
+      style="background:#FF5722;color:#fff;">🔒 Clôturer</button>
+  </div>
+</header>
+
+<!-- ── Body ─────────────────────────────────────────── -->
+<div class="track-body">
+  <!-- Carte -->
+  <div style="flex:1;position:relative;">
+    <div id="map" style="width:100%;height:100%;"></div>
+
+    <!-- Bouton flottant mobile -->
+    <button id="users-fab" onclick="openUsersSheet()">
+      <span class="live-dot"></span>
+      <span id="fab-count">0 participant</span>
+    </button>
+
+    <!-- Bouton "centrer sur tout" -->
+    <button class="map-fab no-print" style="top:14px;right:14px;" onclick="fitAll()" title="Voir tout">⊕</button>
+  </div>
+
+  <!-- Sidebar desktop -->
+  <aside class="track-sidebar no-print">
+    <div class="track-sidebar-header">
+      <span>Participants</span>
+      <span id="user-count-badge" class="badge badge-open">0</span>
+    </div>
+    <div class="track-sidebar-body" id="user-list"></div>
+  </aside>
+</div>
+
+<!-- ── Bottom sheet utilisateurs (mobile) ─────────────── -->
+<div id="users-sheet" onclick="closeUsersSheet(event)">
+  <div class="users-sheet-inner">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">
+      <span>Participants</span>
+      <button onclick="closeUsersSheet()" style="background:none;border:none;font-size:20px;cursor:pointer;padding:4px;">×</button>
+    </div>
+    <div class="sheet-body" id="users-sheet-list"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="colors.js"></script>
+<script>
+const params   = new URLSearchParams(location.search);
+const DIST_ID  = params.get('id');
+const ADMIN_PWD = params.get('pwd');
+
+if (!DIST_ID) { document.body.innerHTML = '<p style="padding:24px;color:red;">ID de distribution manquant.</p>'; }
+
+// ── Carte ────────────────────────────────────────────
+const map = L.map('map', { zoomControl: false }).setView([46.2, 2.2], 6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap', maxZoom: 19
+}).addTo(map);
+L.control.zoom({ position: 'topright' }).addTo(map);
+
+const polylines = {};   // userId → { segId: L.Polyline }
+const markers   = {};   // userId → L.Marker
+const userData  = {};   // userId → { id, name, color, status, joinedAt }
+let allBounds   = null;
+
+function ensurePoly(userId, color, seg) {
+  if (!polylines[userId]) polylines[userId] = {};
+  if (!polylines[userId][seg]) {
+    polylines[userId][seg] = L.polyline([], { color, weight: 5, opacity: .85 }).addTo(map);
+  }
+  return polylines[userId][seg];
+}
+
+function addPoint(userId, lat, lon, seg) {
+  const color = userData[userId]?.color || '#999';
+  ensurePoly(userId, color, seg).addLatLng([lat, lon]);
+  const ll = L.latLng(lat, lon);
+  if (!allBounds) allBounds = L.latLngBounds(ll, ll);
+  else allBounds.extend(ll);
+}
+
+function setMarker(userId, lat, lon) {
+  const u = userData[userId];
+  if (!u) return;
+  const icon = L.divIcon({
+    className: '',
+    iconSize: [30, 30], iconAnchor: [15, 15],
+    html: `<div style="width:30px;height:30px;border-radius:50%;background:${u.color};border:3px solid #fff;
+      box-shadow:0 2px 6px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;
+      color:#fff;font-weight:700;font-size:12px;">${u.name.charAt(0).toUpperCase()}</div>`
+  });
+  if (!markers[userId]) {
+    markers[userId] = L.marker([lat, lon], { icon })
+      .bindTooltip(u.name, { permanent: false, direction: 'top', offset: [0, -16] })
+      .addTo(map);
+  } else {
+    markers[userId].setLatLng([lat, lon]);
+  }
+}
+
+function fitAll() {
+  if (allBounds && allBounds.isValid()) map.fitBounds(allBounds, { padding: [40, 40] });
+}
+
+// ── Stats ─────────────────────────────────────────────
+function calcDist(userId) {
+  let total = 0;
+  Object.values(polylines[userId] || {}).forEach(poly => {
+    const pts = poly.getLatLngs();
+    for (let i = 1; i < pts.length; i++) total += pts[i - 1].distanceTo(pts[i]);
+  });
+  return total;
+}
+function fmtDist(m) { return m < 1000 ? m.toFixed(0) + ' m' : (m/1000).toFixed(2) + ' km'; }
+function fmtDur(ms) {
+  const h = Math.floor(ms/3600000), m = Math.floor((ms%3600000)/60000), s = Math.floor((ms%60000)/1000);
+  return h > 0 ? `${h}h${String(m).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`;
+}
+function statusLabel(s) { return { active:'Actif', paused:'En pause', done:'Terminé' }[s] || s; }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderLegendItem(u) {
+  const dist = calcDist(u.id);
+  const dur  = u.joinedAt ? Date.now() - u.joinedAt : 0;
+  return `
+  <div class="legend-bar" id="lb-${u.id}" onclick="focusUser('${u.id}')">
+    <div class="legend-color-line" style="background:${u.color};"></div>
+    <div class="legend-info">
+      <span class="legend-name">${esc(u.name)}</span>
+      <span class="legend-stats">${fmtDist(dist)} · ${fmtDur(dur)}</span>
+    </div>
+    <div class="legend-status">
+      ${u.status === 'active' ? `<span class="live-dot"></span>` : `<span class="badge badge-${u.status}" style="font-size:10px;">${statusLabel(u.status)}</span>`}
+    </div>
+  </div>`;
+}
+
+function renderUserList() {
+  const users = Object.values(userData);
+  const count = users.length;
+  document.getElementById('user-count-badge').textContent = count;
+  document.getElementById('fab-count').textContent = `${count} participant${count !== 1 ? 's' : ''}`;
+
+  const html = users.length
+    ? users.map(renderLegendItem).join('')
+    : '<p style="padding:16px;color:#999;font-size:13px;text-align:center;">Aucun participant</p>';
+
+  document.getElementById('user-list').innerHTML = html;
+  document.getElementById('users-sheet-list').innerHTML = html;
+}
+
+function focusUser(userId) {
+  const segs = polylines[userId];
+  if (!segs) return;
+  const pts = Object.values(segs).flatMap(p => p.getLatLngs());
+  if (pts.length) map.fitBounds(L.latLngBounds(pts), { padding: [40, 40] });
+}
+
+// ── Chargement initial ────────────────────────────────
+async function loadInitial() {
+  const r = await fetch(`/api/distributions/${DIST_ID}`);
+  if (!r.ok) { alert('Distribution introuvable'); return; }
+  const d = await r.json();
+
+  document.getElementById('dist-name-header').textContent = d.name;
+  document.getElementById('dist-status-header').textContent = d.status === 'active' ? '● En cours' : '✓ Clôturée';
+  document.getElementById('close-btn').style.display = d.status === 'active' ? '' : 'none';
+  document.title = `Suivi – ${d.name}`;
+
+  d.users.forEach(u => { userData[u.id] = { ...u, joinedAt: u.joined_at }; });
+
+  const rr = await fetch(`/api/distributions/${DIST_ID}/routes`);
+  if (rr.ok) {
+    const routes = await rr.json();
+    routes.forEach(r => {
+      if (!userData[r.userId]) userData[r.userId] = { id: r.userId, name: r.name, color: r.color, status: 'done' };
+      r.segments.forEach(seg => {
+        seg.points.forEach(p => addPoint(r.userId, p.lat, p.lon, seg.seg));
+        if (seg.points.length) setMarker(r.userId, seg.points[seg.points.length-1].lat, seg.points[seg.points.length-1].lon);
+      });
+    });
+    if (allBounds && allBounds.isValid()) map.fitBounds(allBounds, { padding: [40, 40] });
+  }
+  renderUserList();
+}
+
+// ── Socket.io ─────────────────────────────────────────
+const socket = io();
+socket.emit('join', { distributionId: DIST_ID });
+
+socket.on('user-joined', u => {
+  userData[u.id] = { ...u, joinedAt: u.joinedAt };
+  renderUserList();
+});
+socket.on('location', ({ userId, lat, lon, segment }) => {
+  addPoint(userId, lat, lon, segment);
+  setMarker(userId, lat, lon);
+  renderUserList();
+});
+socket.on('user-status', ({ userId, status }) => {
+  if (userData[userId]) userData[userId].status = status;
+  renderUserList();
+});
+socket.on('distribution-closed', () => {
+  document.getElementById('dist-status-header').textContent = '✓ Clôturée';
+  document.getElementById('close-btn').style.display = 'none';
+  alert('Distribution clôturée.');
+});
+
+setInterval(renderUserList, 15000);
+
+// ── Clôturer ─────────────────────────────────────────
+async function closeDistribution() {
+  if (!confirm('Clôturer cette distribution ? Les utilisateurs ne pourront plus envoyer de positions.')) return;
+  const r = await fetch(`/api/distributions/${DIST_ID}/close`, {
+    method: 'POST', headers: { 'x-admin-pwd': ADMIN_PWD }
+  });
+  if (r.ok) {
+    document.getElementById('dist-status-header').textContent = '✓ Clôturée';
+    document.getElementById('close-btn').style.display = 'none';
+  }
+}
+
+// ── Bottom sheet mobile ────────────────────────────────
+function openUsersSheet() {
+  document.getElementById('users-sheet').classList.add('open');
+  renderUserList();
+}
+function closeUsersSheet(e) {
+  if (!e || e.target === document.getElementById('users-sheet')) {
+    document.getElementById('users-sheet').classList.remove('open');
+  }
+}
+
+loadInitial();
+</script>
+</body>
+</html>
