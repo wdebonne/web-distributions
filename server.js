@@ -283,7 +283,8 @@ app.get('/api/distributions/:id/report', auth(), (req, res) =>
       return { ...u, distance: Math.round(dist * 1000) / 1000, duration, pointCount: pts.length };
     });
     const td = stats.reduce((a, s) => a + s.distance, 0);
-    res.json({ distribution: dist, users: stats, routes, totalDistance: Math.round(td*1000)/1000, totalDuration: Math.max(...stats.map(s=>s.duration), 0) });
+    const ts = stats.reduce((a, s) => a + (s.steps || 0), 0);
+    res.json({ distribution: dist, users: stats, routes, totalDistance: Math.round(td*1000)/1000, totalDuration: Math.max(...stats.map(s=>s.duration), 0), totalSteps: ts });
   })
 );
 
@@ -346,6 +347,11 @@ io.on('connection', socket => {
     const u = db.validateUserToken(userId, token); if (!u) return;
     const now = Date.now(); db.markUserDone(userId, now); db.endSession(userId, now);
     io.to(`dist-${u.distribution_id}`).emit('user-status', { userId, status: 'done' });
+  });
+  socket.on('steps', ({ userId, token, steps }) => {
+    const u = db.validateUserToken(userId, token);
+    if (!u || typeof steps !== 'number') return;
+    db.updateUserSteps(userId, Math.max(0, Math.floor(steps)));
   });
 });
 

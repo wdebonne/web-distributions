@@ -105,6 +105,7 @@
       <h4>Filtres d'affichage</h4>
       <label class="filter-item"><input type="checkbox" id="f-distance" checked onchange="renderStats()"> Distance</label>
       <label class="filter-item"><input type="checkbox" id="f-duration" checked onchange="renderStats()"> Durée</label>
+      <label class="filter-item"><input type="checkbox" id="f-steps"   checked onchange="renderStats()"> Pas</label>
       <label class="filter-item"><input type="checkbox" id="f-points"         onchange="renderStats()"> Points GPS</label>
       <label class="filter-item"><input type="checkbox" id="f-status"  checked onchange="renderStats()"> Statut</label>
     </div>
@@ -201,17 +202,19 @@ function isChecked(id) { const el = document.getElementById(id); return el ? el.
 // ── Rendu stats ───────────────────────────────────────
 function renderStats() {
   if (!reportData) return;
-  const showDist = isChecked('f-distance');
-  const showDur  = isChecked('f-duration');
-  const showPts  = isChecked('f-points');
-  const showStat = isChecked('f-status');
+  const showDist  = isChecked('f-distance');
+  const showDur   = isChecked('f-duration');
+  const showSteps = isChecked('f-steps');
+  const showPts   = isChecked('f-points');
+  const showStat  = isChecked('f-status');
 
   document.getElementById('stats-list').innerHTML = reportData.users.map(u => {
     const boxes = [];
-    if (showDist) boxes.push(`<div class="stat-box"><div class="stat-box-label">Distance</div><div class="stat-box-val">${fmtDist(u.distance)}</div></div>`);
-    if (showDur)  boxes.push(`<div class="stat-box"><div class="stat-box-label">Durée</div><div class="stat-box-val">${fmtDur(u.duration)}</div></div>`);
-    if (showPts)  boxes.push(`<div class="stat-box"><div class="stat-box-label">Points GPS</div><div class="stat-box-val">${u.pointCount}</div></div>`);
-    if (showStat) boxes.push(`<div class="stat-box"><div class="stat-box-label">Statut</div><div class="stat-box-val" style="font-size:14px;">${statusLabel(u.status)}</div></div>`);
+    if (showDist)  boxes.push(`<div class="stat-box"><div class="stat-box-label">Distance</div><div class="stat-box-val">${fmtDist(u.distance)}</div></div>`);
+    if (showDur)   boxes.push(`<div class="stat-box"><div class="stat-box-label">Durée</div><div class="stat-box-val">${fmtDur(u.duration)}</div></div>`);
+    if (showSteps) boxes.push(`<div class="stat-box"><div class="stat-box-label">Pas</div><div class="stat-box-val">${(u.steps||0).toLocaleString('fr-FR')}</div></div>`);
+    if (showPts)   boxes.push(`<div class="stat-box"><div class="stat-box-label">Points GPS</div><div class="stat-box-val">${u.pointCount}</div></div>`);
+    if (showStat)  boxes.push(`<div class="stat-box"><div class="stat-box-label">Statut</div><div class="stat-box-val" style="font-size:14px;">${statusLabel(u.status)}</div></div>`);
     return `
     <div class="user-section">
       <div class="user-section-header">
@@ -224,8 +227,9 @@ function renderStats() {
   }).join('');
 
   const totBoxes = [];
-  if (showDist) totBoxes.push(`<div class="stat-box"><div class="stat-box-label">Distance totale</div><div class="stat-box-val">${fmtDist(reportData.totalDistance)}</div></div>`);
-  if (showDur)  totBoxes.push(`<div class="stat-box"><div class="stat-box-label">Durée totale</div><div class="stat-box-val">${fmtDur(reportData.totalDuration)}</div></div>`);
+  if (showDist)  totBoxes.push(`<div class="stat-box"><div class="stat-box-label">Distance totale</div><div class="stat-box-val">${fmtDist(reportData.totalDistance)}</div></div>`);
+  if (showDur)   totBoxes.push(`<div class="stat-box"><div class="stat-box-label">Durée totale</div><div class="stat-box-val">${fmtDur(reportData.totalDuration)}</div></div>`);
+  if (showSteps && reportData.totalSteps > 0) totBoxes.push(`<div class="stat-box"><div class="stat-box-label">Pas totaux</div><div class="stat-box-val">${reportData.totalSteps.toLocaleString('fr-FR')}</div></div>`);
   document.getElementById('totals-section').innerHTML = `
     <div class="totals-title">Totaux · ${reportData.users.length} participant${reportData.users.length>1?'s':''}</div>
     <div class="totals-grid">${totBoxes.join('')}</div>`;
@@ -243,8 +247,8 @@ function renderStats() {
 async function exportPDF() {
   if (!reportData) return;
   const { jsPDF } = window.jspdf;
-  const showDist = isChecked('f-distance'), showDur = isChecked('f-duration');
-  const showPts  = isChecked('f-points'),   showStat = isChecked('f-status');
+  const showDist  = isChecked('f-distance'), showDur  = isChecked('f-duration');
+  const showSteps = isChecked('f-steps'),    showPts  = isChecked('f-points'), showStat = isChecked('f-status');
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const d = reportData.distribution; const W = 210; const H = 297;
 
@@ -271,16 +275,17 @@ async function exportPDF() {
 
   // Tableau
   const cols = [{ header: 'Participant', dataKey: 'name' }];
-  if (showDist) cols.push({ header: 'Distance',  dataKey: 'distance' });
-  if (showDur)  cols.push({ header: 'Durée',     dataKey: 'duration' });
-  if (showPts)  cols.push({ header: 'Points GPS',dataKey: 'points'   });
-  if (showStat) cols.push({ header: 'Statut',    dataKey: 'status'   });
+  if (showDist)  cols.push({ header: 'Distance',  dataKey: 'distance' });
+  if (showDur)   cols.push({ header: 'Durée',     dataKey: 'duration' });
+  if (showSteps) cols.push({ header: 'Pas',       dataKey: 'steps'    });
+  if (showPts)   cols.push({ header: 'Points GPS',dataKey: 'points'   });
+  if (showStat)  cols.push({ header: 'Statut',    dataKey: 'status'   });
 
   doc.autoTable({
     startY: y, columns: cols, margin: { left: 14, right: 14 },
     body: reportData.users.map(u => ({
       name: u.name, distance: fmtDist(u.distance), duration: fmtDur(u.duration),
-      points: u.pointCount, status: statusLabel(u.status)
+      steps: (u.steps || 0).toLocaleString('fr-FR'), points: u.pointCount, status: statusLabel(u.status)
     })),
     styles: { fontSize: 10 },
     headStyles: { fillColor: [21, 101, 192], textColor: 255, fontStyle: 'bold' },

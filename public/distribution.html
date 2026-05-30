@@ -252,6 +252,8 @@
     <div class="ribbon" id="ribbon">
       <div class="ribbon-color" id="ribbon-color"></div>
       <div class="ribbon-name"   id="ribbon-name">Chargement…</div>
+      <span id="ribbon-steps" style="display:none;font-size:12px;opacity:.9;white-space:nowrap;flex-shrink:0;"></span>
+      <button id="pedo-btn" onclick="requestPedoPermission()" style="display:none;background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:12px;padding:3px 8px;font-size:11px;cursor:pointer;flex-shrink:0;">👟 Activer</button>
       <div class="ribbon-status" id="ribbon-status">Actif</div>
     </div>
 
@@ -306,6 +308,7 @@ let otherPolylines = {}, otherMarkers = {};
 let totalDist = 0, lastPt = null;
 let sessionStart = null, pausedMs = 0, pauseStartTs = null, timerInterval = null;
 let selectedColor = null, isExistingSession = false;
+let stepCount = 0, stepPhase = 'low', lastEmittedSteps = 0;
 
 // ═══ Chargement distribution ════════════════════════
 async function init() {
@@ -432,6 +435,13 @@ async function startTracking() {
   sessionStart = Date.now();
   timerInterval = setInterval(updateTimer, 1000);
 
+  // Restaurer les pas de la session précédente
+  if (session.steps) {
+    stepCount = session.steps;
+    lastEmittedSteps = stepCount;
+    document.getElementById('ribbon-steps').textContent = `👟 ${stepCount}`;
+  }
+
   // Charger tracés existants
   await loadExistingRoutes();
 
@@ -440,6 +450,9 @@ async function startTracking() {
 
   // GPS
   startGPS();
+
+  // Podomètre
+  startPedometer();
 }
 
 // ═══ Tracés existants ═══════════════════════════════
@@ -582,6 +595,7 @@ function handleActionBtn() {
     pauseStartTs = Date.now();
     setActionBtn('paused');
     document.getElementById('ribbon-status').textContent = '⏸ En pause';
+    emitSteps();
     socket?.emit('pause', { userId: session.userId, token: session.token });
     document.getElementById('pause-menu').style.display = 'flex';
   }
@@ -605,6 +619,7 @@ function finishTracking() {
   document.getElementById('ribbon-status').textContent = '✓ Terminé';
   document.getElementById('pause-menu').style.display  = 'none';
   if (watchId) navigator.geolocation.clearWatch(watchId);
+  emitSteps();
   socket?.emit('done', { userId: session.userId, token: session.token });
   localStorage.removeItem(STORE_KEY);
 
@@ -666,6 +681,57 @@ function connectSocket() {
 
   socket.on('user-joined', u => { distData.users.push(u); });
   socket.on('distribution-closed', showClosed);
+}
+
+// ═══ Podomètre ══════════════════════════════════════
+function startPedometer() {
+  if (!window.DeviceMotionEvent) return;
+  if (typeof DeviceMotionEvent.requestPermission === 'function') {
+    // iOS 13+ — nécessite un geste utilisateur explicite
+    document.getElementById('pedo-btn').style.display = '';
+  } else {
+    activatePedometer();
+  }
+}
+
+async function requestPedoPermission() {
+  try {
+    const perm = await DeviceMotionEvent.requestPermission();
+    if (perm === 'granted') {
+      activatePedometer();
+      document.getElementById('pedo-btn').style.display = 'none';
+    }
+  } catch(e) {}
+}
+
+function activatePedometer() {
+  window.addEventListener('devicemotion', onMotion);
+  const el = document.getElementById('ribbon-steps');
+  el.textContent = `👟 ${stepCount}`;
+  el.style.display = '';
+}
+
+function onMotion(e) {
+  if (myStatus !== 'running') return;
+  const a = e.accelerationIncludingGravity;
+  if (!a || a.x == null) return;
+  const mag = Math.sqrt(a.x ** 2 + a.y ** 2 + a.z ** 2);
+  if (stepPhase === 'low' && mag > 11.5) {
+    stepPhase = 'high';
+  } else if (stepPhase === 'high' && mag < 9.5) {
+    stepPhase = 'low';
+    stepCount++;
+    document.getElementById('ribbon-steps').textContent = `👟 ${stepCount}`;
+    if (stepCount - lastEmittedSteps >= 10) emitSteps();
+  }
+}
+
+function emitSteps() {
+  if (!socket?.connected || !session?.token) return;
+  socket.emit('steps', { userId: session.userId, token: session.token, steps: stepCount });
+  lastEmittedSteps = stepCount;
+  session.steps = stepCount;
+  localStorage.setItem(STORE_KEY, JSON.stringify(session));
 }
 
 // ═══ Haversine ══════════════════════════════════════
