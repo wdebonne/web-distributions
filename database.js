@@ -1,4 +1,4 @@
-// Distribution Tracker v2.2.0 — Database layer (sql.js / SQLite WASM)
+// Distribution Tracker v2.3.0 — Database layer (sql.js / SQLite WASM)
 const initSqlJs = require('sql.js');
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
@@ -111,6 +111,7 @@ async function init() {
     ['ldap_host',           ''],
     ['ldap_port',           '389'],
     ['ldap_use_ssl',        '0'],
+    ['ldap_ignore_ssl',     '0'],
     ['ldap_base_dn',        ''],
     ['ldap_bind_dn',        ''],
     ['ldap_bind_password',  ''],

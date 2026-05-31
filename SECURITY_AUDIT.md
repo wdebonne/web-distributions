@@ -4,6 +4,8 @@
 **Auditeur :** Claude Sonnet 4.6  
 **Résultat global :** 4 CRITIQUES · 4 HIGH · 4 MEDIUM · 2 LOW
 
+> **Mise à jour v2.3.0 (2026-05-31)** — Correctifs appliqués : ✅ 1.1 CORS · ✅ 1.2 JWT · ✅ 1.4 Mot de passe · ✅ 1.3 TLS LDAP/SSO/SMTP · ✅ 2.1 Rate limiting · ✅ 2.3 XSS LDAP
+
 ---
 
 ## Résumé Exécutif

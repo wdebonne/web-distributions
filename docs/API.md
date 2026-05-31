@@ -1,4 +1,4 @@
-# Documentation API — Distribution Tracker v2.2.0
+# Documentation API — Distribution Tracker v2.3.0
 
 L'API REST est exposée par le serveur Express. Toutes les requêtes et réponses utilisent le format **JSON**.
 

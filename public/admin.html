@@ -368,7 +368,7 @@
 
           <div class="form-group" style="margin-bottom:0;">
             <label>Texte de pied de page <span class="text-muted text-sm">(version, copyright…)</span></label>
-            <input type="text" id="s-footer-text" placeholder="Distribution Tracker v2.2.0" maxlength="100">
+            <input type="text" id="s-footer-text" placeholder="Distribution Tracker v2.3.0" maxlength="100">
           </div>
         </div>
 
@@ -498,6 +498,11 @@
               <div class="form-group">
                 <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;">
                   <input type="checkbox" id="ldap-ssl" style="width:auto;"> Utiliser LDAPS (SSL/TLS — port 636)
+                </label>
+              </div>
+              <div class="form-group">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;">
+                  <input type="checkbox" id="ldap-ignore-ssl" style="width:auto;"> Ignorer les erreurs de certificat TLS (certificat auto-signé)
                 </label>
               </div>
               <div class="form-group">
@@ -1104,6 +1109,7 @@ async function loadAuth() {
   document.getElementById('ldap-host').value         = s.ldap_host         || '';
   document.getElementById('ldap-port').value         = s.ldap_port         || '389';
   document.getElementById('ldap-ssl').checked        = s.ldap_use_ssl      === '1';
+  document.getElementById('ldap-ignore-ssl').checked = s.ldap_ignore_ssl   === '1';
   document.getElementById('ldap-base-dn').value      = s.ldap_base_dn      || '';
   document.getElementById('ldap-bind-dn').value      = s.ldap_bind_dn      || '';
   document.getElementById('ldap-bind-password').value = '';
@@ -1132,6 +1138,7 @@ async function saveAuth() {
     ldap_host:          document.getElementById('ldap-host').value.trim(),
     ldap_port:          document.getElementById('ldap-port').value,
     ldap_use_ssl:       document.getElementById('ldap-ssl').checked ? '1' : '0',
+    ldap_ignore_ssl:    document.getElementById('ldap-ignore-ssl').checked ? '1' : '0',
     ldap_base_dn:       document.getElementById('ldap-base-dn').value.trim(),
     ldap_bind_dn:       document.getElementById('ldap-bind-dn').value.trim(),
     ldap_bind_password: document.getElementById('ldap-bind-password').value || '••••••••',
@@ -1158,6 +1165,7 @@ async function testLdap() {
     host:         document.getElementById('ldap-host').value.trim(),
     port:         document.getElementById('ldap-port').value,
     useSSL:       document.getElementById('ldap-ssl').checked,
+    ignoreSSL:    document.getElementById('ldap-ignore-ssl').checked,
     bindDn:       document.getElementById('ldap-bind-dn').value.trim(),
     bindPassword: document.getElementById('ldap-bind-password').value,
     baseDn:       document.getElementById('ldap-base-dn').value.trim(),
@@ -1167,7 +1175,7 @@ async function testLdap() {
   const r = await apiFetch('/api/admin/auth/test-ldap', { method: 'POST', body: JSON.stringify(body) });
   const d = await r.json();
   if (r.ok) {
-    let html = `✅ ${d.message}`;
+    let html = `✅ ${esc(d.message)}`;
     if (d.userFound) {
       html += `<br>👤 Utilisateur trouvé : <strong>${esc(d.userName||'?')}</strong> &lt;${esc(d.userEmail||'?')}&gt;`;
       if (d.memberOf?.length) html += `<br>👥 Groupes : ${d.memberOf.map(g => `<code>${esc(g)}</code>`).join(', ')}`;

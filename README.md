@@ -2,7 +2,7 @@
 
 > Application web de suivi GPS en temps réel pour la distribution de courriers en boîtes aux lettres.
 
-[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.3.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](docs/DEPLOYMENT.md)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](package.json)
@@ -113,9 +113,10 @@ Copier `.env.example` en `.env` et adapter les valeurs :
 | `PORT` | `3000` | Port d'écoute du serveur |
 | `ADMIN_EMAIL` | `admin@localhost` | Email du compte admin créé au 1er démarrage |
 | `ADMIN_PASSWORD` | `admin123` | Mot de passe admin — **changer en production !** |
-| `JWT_SECRET` | *(valeur par défaut)* | Clé secrète JWT — **changer en production !** |
+| `JWT_SECRET` | *(obligatoire)* | Clé secrète JWT — **le serveur refuse de démarrer sans elle** — `openssl rand -hex 32` |
 | `BASE_URL` | *(auto-détecté)* | URL publique complète pour les QR codes et URI de redirection SSO |
 | `DATA_DIR` | `/data` | Répertoire SQLite dans le container |
+| `SMTP_REJECT_UNAUTHORIZED` | `true` | Mettre à `false` pour accepter les certificats SMTP auto-signés (réseau interne) |
 
 La personnalisation du site (nom, couleurs, favicon…) se configure depuis l'interface admin → onglet **⚙️ Paramètres**.
 
@@ -223,10 +224,14 @@ web-distributions/
 ## 🔒 Sécurité
 
 - Mots de passe hashés avec **bcryptjs** (10 rounds)
-- Sessions **JWT** avec expiration à 7 jours
+- Sessions **JWT** avec expiration à 7 jours — secret **obligatoire** via `JWT_SECRET`
 - Tokens de réinitialisation à usage unique (expiration 1h)
 - Routes protégées par rôle (`admin` / `creator`)
 - Emails de réinitialisation sans révélation des comptes existants
+- **Rate limiting** sur les endpoints sensibles (`/api/auth/login`, `/api/auth/forgot-password`)
+- **CORS Socket.io** restreint à `BASE_URL` (pas de `*`)
+- Génération de mots de passe via `crypto.randomBytes` (cryptographiquement sûr)
+- Validation TLS active par défaut sur LDAP, SSO et SMTP
 - **HTTPS recommandé** en production (requis pour le GPS mobile)
 
 ---

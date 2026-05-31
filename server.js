@@ -1,4 +1,4 @@
-// Distribution Tracker v2.2.0 — https://github.com/wdebonne/web-distributions
+// Distribution Tracker v2.3.0 — https://github.com/wdebonne/web-distributions
 const express = require('express');
 const http    = require('http');
 const https   = require('https');
@@ -10,19 +10,46 @@ const QRCode  = require('qrcode');
 const bcrypt  = require('bcryptjs');
 const jwt     = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
-const ldap    = require('ldapjs');
-const db      = require('./database');
+const ldap      = require('ldapjs');
+const crypto    = require('crypto');
+const rateLimit = require('express-rate-limit');
+const db        = require('./database');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+const io = new Server(server, {
+  cors: {
+    origin: process.env.BASE_URL || 'http://localhost:3000',
+    credentials: true
+  }
+});
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || '';
-const JWT_SECRET = process.env.JWT_SECRET || 'dt-dev-secret-change-in-prod';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is not set. Server cannot start without a secure secret.');
+  process.exit(1);
+}
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Trop de tentatives, réessayez dans 15 minutes.' }
+});
+
+const forgotLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Trop de demandes de réinitialisation, réessayez dans 1 heure.' }
+});
 
 // ── Helpers ──────────────────────────────────────────
 function haversine(lat1, lon1, lat2, lon2) {
@@ -64,7 +91,7 @@ async function authenticateLdap(login, password) {
   return new Promise((resolve, reject) => {
     const client = ldap.createClient({
       url: `${useSSL ? 'ldaps' : 'ldap'}://${s.ldap_host}:${port}`,
-      tlsOptions: { rejectUnauthorized: false },
+      tlsOptions: { rejectUnauthorized: s.ldap_ignore_ssl !== '1' },
       timeout: 8000, connectTimeout: 8000,
     });
     client.on('error', err => { try { client.destroy(); } catch {} reject(err); });
@@ -249,7 +276,7 @@ async function getTransporter() {
   return nodemailer.createTransport({
     host: s.host, port: s.port || 587, secure: !!s.secure,
     auth: s.smtp_user ? { user: s.smtp_user, pass: s.smtp_pass } : undefined,
-    tls: { rejectUnauthorized: false }
+    tls: { rejectUnauthorized: process.env.SMTP_REJECT_UNAUTHORIZED !== 'false' }
   });
 }
 async function sendEmail(to, tplName, vars) {
@@ -275,7 +302,7 @@ const PUBLIC_SETTING_KEYS = [
 
 const AUTH_SETTING_KEYS = [
   'auth_mode',
-  'ldap_host', 'ldap_port', 'ldap_use_ssl', 'ldap_base_dn',
+  'ldap_host', 'ldap_port', 'ldap_use_ssl', 'ldap_ignore_ssl', 'ldap_base_dn',
   'ldap_bind_dn', 'ldap_bind_password', 'ldap_user_filter',
   'auth_group_mapping',
   'sso_url', 'sso_client_id', 'sso_client_secret',
@@ -339,12 +366,12 @@ app.put('/api/admin/auth', auth(['admin']), (req, res) => {
 });
 
 app.post('/api/admin/auth/test-ldap', auth(['admin']), async (req, res) => {
-  const { host, port, useSSL, bindDn, bindPassword, baseDn, filter, testLogin, testPassword } = req.body;
+  const { host, port, useSSL, ignoreSSL, bindDn, bindPassword, baseDn, filter, testLogin, testPassword } = req.body;
   if (!host || !bindDn || !baseDn) return res.status(400).json({ error: 'Hôte, DN service et DN de base requis' });
 
   const client = ldap.createClient({
     url: `${useSSL ? 'ldaps' : 'ldap'}://${host}:${port || 389}`,
-    tlsOptions: { rejectUnauthorized: false },
+    tlsOptions: { rejectUnauthorized: !ignoreSSL },
     timeout: 8000, connectTimeout: 8000,
   });
 
@@ -407,7 +434,7 @@ app.post('/api/admin/auth/test-sso', auth(['admin']), async (req, res) => {
 // ══════════════════════════════════════════════════════
 // AUTH
 // ══════════════════════════════════════════════════════
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', loginLimiter, async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email et mot de passe requis' });
 
@@ -500,7 +527,7 @@ app.put('/api/auth/change-password', auth(), async (req, res) => {
   res.json({ success: true });
 });
 
-app.post('/api/auth/forgot-password', async (req, res) => {
+app.post('/api/auth/forgot-password', forgotLimiter, async (req, res) => {
   res.json({ success: true }); // toujours 200 pour ne pas révéler les emails
   const user = db.getUserByEmail((req.body.email || '').trim());
   if (!user) return;
@@ -531,7 +558,7 @@ app.post('/api/admin/users', auth(['admin']), async (req, res) => {
   const { email, name, role, password, sendWelcome } = req.body;
   if (!email || !name || !['admin','creator'].includes(role)) return res.status(400).json({ error: 'Email, nom et rôle requis' });
   if (db.getUserByEmail(email.trim())) return res.status(400).json({ error: 'Email déjà utilisé' });
-  const pwd = password || Math.random().toString(36).slice(-10);
+  const pwd = password || crypto.randomBytes(16).toString('base64url').slice(0, 16);
   const id  = uuidv4().replace(/-/g,'').slice(0,16);
   db.createAppUser({ id, email: email.trim().toLowerCase(), name, role, hash: await bcrypt.hash(pwd, 10), now: Date.now(), forceChange: !password });
   if (sendWelcome || !password) {
@@ -752,5 +779,5 @@ io.on('connection', socket => {
 });
 
 db.init().then(() => {
-  server.listen(PORT, () => console.log(`Distribution Tracker v2.2.0 → http://localhost:${PORT}`));
+  server.listen(PORT, () => console.log(`Distribution Tracker v2.3.0 → http://localhost:${PORT}`));
 }).catch(e => { console.error('DB init:', e); process.exit(1); });

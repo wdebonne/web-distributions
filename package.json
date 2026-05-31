@@ -1,6 +1,6 @@
 {
   "name": "distribution-tracker",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Suivi de distribution de courriers — avec gestion des rôles Admin/Créateur, personnalisation du site, LDAP et SSO",
   "main": "server.js",
   "scripts": {
@@ -9,6 +9,7 @@
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "express": "^4.18.2",
+    "express-rate-limit": "^8.5.2",
     "jsonwebtoken": "^9.0.2",
     "ldapjs": "^2.3.3",
     "nodemailer": "^6.9.9",

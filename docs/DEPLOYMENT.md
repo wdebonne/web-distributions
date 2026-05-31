@@ -1,4 +1,4 @@
-# Guide de déploiement — Distribution Tracker v2.2.0
+# Guide de déploiement — Distribution Tracker v2.3.0
 
 ---
 
@@ -92,10 +92,11 @@ mkdir -p /opt/web-distributions/data
 | `PORT` | `3000` | Non | Port d'écoute HTTP |
 | `ADMIN_EMAIL` | `admin@localhost` | **Prod** | Email du compte admin (synchronisé à chaque démarrage) |
 | `ADMIN_PASSWORD` | `admin123` | **Prod** | Mot de passe admin — **changer en production !** |
-| `JWT_SECRET` | *(valeur dev)* | **Prod** | Clé secrète JWT — générer avec `openssl rand -hex 32` |
+| `JWT_SECRET` | *(aucun)* | **Obligatoire** | Clé secrète JWT — **le serveur refuse de démarrer sans elle** — générer avec `openssl rand -hex 32` |
 | `BASE_URL` | *(auto)* | **Prod + SSO** | URL publique complète — obligatoire pour le SSO OAuth2 |
 | `DATA_DIR` | `/data` | Non | Répertoire SQLite dans le container |
 | `NODE_ENV` | `production` | Non | Environnement Node.js |
+| `SMTP_REJECT_UNAUTHORIZED` | `true` | Non | Mettre à `false` pour accepter les certificats SMTP auto-signés (réseau interne uniquement) |
 
 > **`BASE_URL` et SSO** : Si vous activez le SSO Synology, `BASE_URL` doit être l'URL publique exacte de votre application (ex : `https://distrib.mondomaine.fr`). L'URI de redirection OAuth2 sera `BASE_URL/api/auth/sso/callback` — c'est cette valeur à saisir dans Synology SSO Server.
 

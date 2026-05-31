@@ -13,6 +13,33 @@ et ce projet respecte le [Versionnage Sémantique](https://semver.org/lang/fr/).
 
 ---
 
+## [2.3.0] — 2026-05-31
+
+### 🔒 Sécurité (correctifs)
+
+#### Critiques
+- **JWT secret obligatoire** (CWE-798) — le serveur refuse de démarrer si `JWT_SECRET` n'est pas défini ; le fallback sur la valeur codée en dur est supprimé
+- **CORS Socket.io restreint** (CWE-942) — l'origine `*` est remplacée par `BASE_URL` (ou `http://localhost:3000` en dev)
+- **Génération de mots de passe cryptographique** (CWE-338) — `Math.random()` remplacé par `crypto.randomBytes(16)` pour les mots de passe auto-générés
+
+#### High
+- **Rate limiting sur les endpoints d'authentification** (CWE-307) — ajout de `express-rate-limit` : 5 tentatives / 15 min sur `/api/auth/login`, 3 requêtes / heure sur `/api/auth/forgot-password`
+- **XSS dans le résultat du test LDAP** (CWE-79) — `d.message` passé dans `esc()` avant injection dans `innerHTML`
+- **Validation TLS activée** (CWE-295) :
+  - LDAP (auth + test) : `rejectUnauthorized` désormais `true` par défaut ; configurable via la case "Ignorer les erreurs de certificat" dans l'interface admin (nouveau paramètre `ldap_ignore_ssl` en base)
+  - SMTP : `rejectUnauthorized` désormais `true` par défaut ; désactivable via `SMTP_REJECT_UNAUTHORIZED=false` dans le `.env`
+  - SSO : déjà géré via `sso_ignore_ssl` (inchangé)
+
+#### Dépendances
+- Ajout de `express-rate-limit ^8.5.2`
+- `crypto` : module natif Node.js, aucune dépendance supplémentaire
+
+#### Configuration
+- `.env.example` : `JWT_SECRET` désormais vide (à renseigner obligatoirement) ; ajout de `SMTP_REJECT_UNAUTHORIZED`
+- Nouveau paramètre de base de données `ldap_ignore_ssl` (défaut : `0`) avec case à cocher dans l'interface admin LDAP
+
+---
+
 ## [2.2.0] — 2026-05-30
 
 ### 🔑 Authentification LDAP et SSO (nouveau)
@@ -176,7 +203,8 @@ et ce projet respecte le [Versionnage Sémantique](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/wdebonne/web-distributions/compare/v2.2.0...HEAD
+[Non publié]: https://github.com/wdebonne/web-distributions/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/wdebonne/web-distributions/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/wdebonne/web-distributions/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/wdebonne/web-distributions/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/wdebonne/web-distributions/compare/v1.0.0...v2.0.0
